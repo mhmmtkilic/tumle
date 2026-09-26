@@ -47,12 +47,22 @@ Tek ilke: **her şey dünyada, tek mekanik.** Eşya → ızgara hücresine yerle
 
 ## Başarımlar
 
-22 başarım, tek listede — kademeyi bölüm başlıkları değil madalyanın malzemesi anlatır. Her başarımın kademeye göre **TL ödülü** vardır (normal ₺25.000 · zor ₺250.000 · elit ₺2.5M · efsanevi ₺25M); açılınca kart sarı çerçeveye girer, **Ödülü Al** butonuyla cüzdana aktarılır. Ana ekrandaki kupa butonu alınmamış ödül sayısını kırmızı rozetle gösterir. Bilerek kolay başarım yok. Rozetler para taşlarıyla aynı görsel dilde saf SVG çizilir; kilitliyken madalyanın katman yapısı (kurdele, halka, kesikli kenar, yüz) **gri iskelet** olarak durur, ikonun yerinde asma kilit vardır — içerik kazanılınca açılır. Kazanım anında cha-ching sesiyle üstte rozet bildirimi belirir. Ana ekrandaki kupa butonundan başarımlar ekranına gidilir (n/22 sayacı).
+34 başarım, tek listede — kademeyi bölüm başlıkları değil madalyanın malzemesi anlatır. Her başarımın kademeye göre **TL ödülü** vardır (normal ₺25.000 · zor ₺250.000 · elit ₺2.5M · efsanevi ₺25M); açılınca kart sarı çerçeveye girer, **Ödülü Al** butonuyla cüzdana aktarılır. Ana ekrandaki kupa butonu alınmamış ödül sayısını kırmızı rozetle gösterir. Bilerek kolay başarım yok. Rozetler para taşlarıyla aynı görsel dilde saf SVG çizilir; kilitliyken madalyanın katman yapısı (kurdele, halka, kesikli kenar, yüz) **gri iskelet** olarak durur, ikonun yerinde asma kilit vardır — içerik kazanılınca açılır. Kazanım anında cha-ching sesiyle üstte rozet bildirimi belirir. Ana ekrandaki kupa butonundan başarımlar ekranına gidilir (n/34 sayacı).
 
-- **Normal (gümüş madalya):** Dövize Kaçış (ilk 100 Dolar) · Altın Günü (ilk 1 Gr Altın) · Zincir Reaksiyon (×5 combo) · İlk Anahtar (ilk eşya)
-- **Zor (altın madalya + ışıma):** Külçe Avcısı (Külçe Altın) · EFSANE (×10 combo) · Kağıt Üstünde Milyoner (₺1M birikim) · Boğa Piyasası (tek oyunda ₺100.000) · Toprak Ağası (Yan Arsa) · Mahalle Kralı (tüm sahne eşyaları)
-- **Elit (mücevher mineli altın madalya, ışın + parıltı):** Çifte Külçe (tahtada 2 Külçe) · Altın Çağ (tahtada 4 altın taşı) · Nümizmat (12 para türü aynı anda tahtada) · Hiper Enflasyon (tek oyunda ₺1M) · Holding (₺10M birikim) · Seri Manyağı (15 hamlelik birleşme serisi)
-- **Efsanevi (taçlı, yanardöner jantlı, faset yüzlü madalya):** Kuyumcu (ilk Yeşim Taşı) · Mücevher Kutusu (tahtada 3 mücevher) · Elmas Eller (Bitcoin) · Soğuk Depo (Soğuk Cüzdan) · Define Avcısı (Hazine Sandığı) · Dünyanın Sahibi (Dünya Serveti — zincirin sonu)
+Kurgu iki eksende ilerler: zincirin **her para türü** hem bir "ilk taş" kilometre taşı hem de "türün tamamını aynı anda tahtada topla" koleksiyon görevi verir (`defs.ts`'te `kind` alanı, tetikler `AchievementsContext`'teki `MILESTONES` ve `KIND_SETS` tablolarında); bunun yanında türden bağımsız beceri/ekonomi görevleri durur. Koleksiyon eşikleri modül yüklenirken doğrulanır: doğum tabanı `max - SPAWN_FLOOR_GAP`e yükseldiği için tahtada aynı anda en çok **8 farklı seviye** durabilir, daha fazlasını isteyen bir koleksiyon eklenirse kod patlar.
+
+| Para türü | Kilometre taşları | Koleksiyon |
+| --- | --- | --- |
+| Madeni (1 kr–1 TL) | Cebinde Bozukluk (1 TL) | Kumbara Tamam (4 madeni tür) |
+| Kağıt (10 TL–100 $) | Kağıda Terfi (10 TL) · Dövize Kaçış (100 Dolar) | Deste Deste (4 kağıt tür) |
+| Altın (1 gr–külçe) | Altın Günü (1 gr) · Damat Altını (Tam Altın) · Külçe Avcısı (Külçe) | Altın Vitrini (4 altın tür) · Çifte Külçe · Altın Çağ |
+| Mücevher (yeşim–pembe elmas) | Kuyumcu (Yeşim) · Elmas Kesim (Elmas) · Pembe Nadir (Pembe Elmas) | Mücevher Kutusu (3 taş) · Mücevher Vitrini (5 farklı tür) |
+| Kripto (Bitcoin, Soğuk Cüzdan) | Elmas Eller (Bitcoin) · Soğuk Depo (Soğuk Cüzdan) | Soğuk Zincir (ikisi aynı anda) |
+| Epik (sandık–dünya) | Define Avcısı (Hazine Sandığı) · Kasa Kilidi (Banka Kasası) · Rezerv Sahibi (MB Rezervi) · Dünyanın Sahibi (Dünya Serveti) | — |
+
+Türden bağımsız olanlar: Zincir Reaksiyon (×5 combo) · EFSANE (×10 combo) · Seri Manyağı (15 hamlelik seri) · Boğa Piyasası (tek oyunda ₺100.000) · Hiper Enflasyon (tek oyunda ₺1M) · Kağıt Üstünde Milyoner (₺1M birikim) · Holding (₺10M birikim) · İlk Anahtar (ilk eşya) · Toprak Ağası (Yan Arsa) · Mahalle Kralı (tüm sahne eşyaları) · Nümizmat (12 para türü aynı anda — **şu an ulaşılamaz**, bkz. `AchievementsContext.tsx` notu).
+
+Kademe dağılımı: 7 normal · 8 zor · 7 elit · 12 efsanevi.
 
 ## Ayarlar
 

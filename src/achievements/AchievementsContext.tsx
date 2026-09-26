@@ -3,7 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ACHIEVEMENTS, AchievementDef, rewardOf } from './defs';
-import { KULCE_LEVEL, MAX_LEVEL } from '../game/levels';
+import { KULCE_LEVEL, levelKind, MAX_LEVEL, TileKind } from '../game/levels';
+import { SPAWN_FLOOR_GAP } from '../game/engine';
 import { PLACED_ITEMS } from '../economy/items';
 import { useEconomy } from '../economy/EconomyContext';
 import { playMerge } from '../audio';
@@ -35,6 +36,51 @@ interface AchApi {
 }
 
 const Ctx = createContext<AchApi | null>(null);
+
+/**
+ * Zincir kilometre taşları: tahtada bu seviyeye ULAŞMAK başarımı açar.
+ * Her para türünün ilk taşı ve türün tepe taşı burada temsil edilir.
+ */
+const MILESTONES: { level: number; id: string }[] = [
+  { level: 4, id: 'madeni' }, // 1 TL — madeni paranın sonu
+  { level: 5, id: 'banknot' }, // 10 TL — kağıt para başlıyor
+  { level: 8, id: 'dolar' }, // 100 Dolar
+  { level: 9, id: 'altin' }, // 1 Gr Altın — altın başlıyor
+  { level: 11, id: 'tamaltin' }, // Tam Altın
+  { level: KULCE_LEVEL, id: 'kulce' }, // Külçe Altın
+  { level: 13, id: 'kuyumcu' }, // Yeşim Taşı — mücevher başlıyor
+  { level: 17, id: 'elmas' }, // Elmas
+  { level: 18, id: 'pembeelmas' }, // Pembe Elmas — mücevherin tepesi
+  { level: 19, id: 'elmaseller' }, // Bitcoin — kripto başlıyor
+  { level: 20, id: 'sogukdepo' }, // Soğuk Cüzdan
+  { level: 21, id: 'define' }, // Hazine Sandığı — epik başlıyor
+  { level: 22, id: 'kasa' }, // Banka Kasası
+  { level: 23, id: 'rezerv' }, // MB Rezervi
+  { level: MAX_LEVEL, id: 'dunyanin' }, // Dünya Serveti
+];
+
+/**
+ * Tür koleksiyonları: aynı anda tahtada kaç FARKLI seviye gerekiyor.
+ * Kripto yalnız iki seviyeden oluşur, bu yüzden eşiği ikidir.
+ */
+const KIND_SETS: { kind: TileKind; need: number; id: string }[] = [
+  { kind: 'coin', need: 4, id: 'kumbara' },
+  { kind: 'note', need: 4, id: 'deste' },
+  { kind: 'gold', need: 4, id: 'altinseti' },
+  { kind: 'gem', need: 5, id: 'mucevherseti' },
+  { kind: 'crypto', need: 2, id: 'sogukzincir' },
+];
+
+// Doğum tabanı her hamlede max-SPAWN_FLOOR_GAP'e yükselip altındaki taşları
+// yukarı çektiği için tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 farklı seviye
+// durabilir. Daha fazlasını isteyen koleksiyon asla açılmaz — bu yüzden burada
+// patlar (ulaşılamaz başarım sessizce kalmasın).
+for (const s of KIND_SETS) {
+  if (s.need > SPAWN_FLOOR_GAP + 1) throw new Error(`Ulaşılamaz koleksiyon: ${s.id}`);
+}
+for (const id of [...MILESTONES.map((m) => m.id), ...KIND_SETS.map((s) => s.id)]) {
+  if (!ACHIEVEMENTS.some((a) => a.id === id)) throw new Error(`Tanımsız başarım tetiği: ${id}`);
+}
 
 export function AchievementsProvider({ children }: { children: React.ReactNode }) {
   const [unlocked, setUnlocked] = useState<string[]>([]);
@@ -107,26 +153,35 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       let goldCount = 0;
       let gemCount = 0;
       const distinct = new Set<number>();
+      /** Para türü → o an tahtada duran farklı seviyeler (koleksiyon başarımları) */
+      const perKind = new Map<TileKind, Set<number>>();
       for (const lv of levels) {
         if (lv > max) max = lv;
         if (lv >= KULCE_LEVEL) kulceCount++;
         if (lv >= 9) goldCount++;
         if (lv >= 13 && lv <= 18) gemCount++; // Yeşim…Pembe Elmas
         distinct.add(lv);
+        const kind = levelKind(lv);
+        const set = perKind.get(kind);
+        if (set) set.add(lv);
+        else perKind.set(kind, new Set([lv]));
       }
-      if (max >= 8) unlock('dolar');
-      if (max >= 9) unlock('altin');
-      if (max >= KULCE_LEVEL) unlock('kulce');
+      // Zincir: her para türünün ilk ve tepe taşı
+      for (const m of MILESTONES) {
+        if (max >= m.level) unlock(m.id);
+      }
+      // Koleksiyon: bir para türünün tamamı aynı anda tahtada
+      for (const s of KIND_SETS) {
+        if ((perKind.get(s.kind)?.size ?? 0) >= s.need) unlock(s.id);
+      }
+      // Tahta kompozisyonu (tür karışımından bağımsız)
       if (kulceCount >= 2) unlock('ciftekulce');
       if (goldCount >= 4) unlock('altincag');
-      if (distinct.size >= KULCE_LEVEL) unlock('numizmat');
-      // Efsanevi: zincirin mücevher/kripto/epik ucu
-      if (max >= 13) unlock('kuyumcu');
       if (gemCount >= 3) unlock('mucevherkutusu');
-      if (max >= 19) unlock('elmaseller');
-      if (max >= 20) unlock('sogukdepo');
-      if (max >= 21) unlock('define');
-      if (max >= MAX_LEVEL) unlock('dunyanin');
+      // BİLİNEN HATA: tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 (=8) farklı
+      // seviye durabildiği için bu eşik (12) hiç karşılanamaz — numizmat ölü
+      // rozet. Eşik 8'e çekilmeli ya da başarım yeniden tanımlanmalı.
+      if (distinct.size >= KULCE_LEVEL) unlock('numizmat');
     },
     [unlock]
   );
