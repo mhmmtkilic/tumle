@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "gamemoney-app",
-    "slug": "gamemoney-app",
+    "name": "Tümle 2048",
+    "slug": "tumle-2048",
+    "backgroundColor": "#F2F6F3",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,15 +12,27 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FAB52A",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.mhmmtkilicc.tumle2048"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-audio",
+      "expo-asset",
+      "expo-sharing",
+      "expo-status-bar"
+    ]
   }
 }
