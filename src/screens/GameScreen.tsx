@@ -1,82 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import BoardView from '../components/BoardView';
+import ComboBurst from '../components/ComboBurst';
 import Hud from '../components/Hud';
 import Overlay from '../components/Overlay';
 import { aliveTiles, Direction, GRID } from '../game/engine';
-import { formatTL } from '../game/levels';
 import { COMBO_START, comboMultiplier, useGame } from '../useGame';
 import { useAchievements } from '../achievements/AchievementsContext';
 import { useEconomy } from '../economy/EconomyContext';
-import { GAME_FONT } from '../ui/theme';
 
 const SWIPE_THRESHOLD = 24;
 
 interface Props {
   onBack: () => void;
-}
-
-/** Seri büyüdükçe kademe: renk ısınır, yazı büyür, coşku artar */
-function comboTier(mult: number) {
-  if (mult >= 10) return { color: '#B14BD9', shadow: 'rgba(106,32,140,0.6)', size: 60, word: 'EFSANE! 👑' };
-  if (mult >= 8) return { color: '#E2453A', shadow: 'rgba(140,30,22,0.6)', size: 56, word: 'Çılgınca! 🔥' };
-  if (mult >= 6) return { color: '#F0762E', shadow: 'rgba(150,62,14,0.6)', size: 52, word: 'Süper!' };
-  if (mult >= 4) return { color: '#F09A3E', shadow: 'rgba(160,90,15,0.55)', size: 48, word: '' };
-  return { color: '#F6B93B', shadow: 'rgba(180,114,10,0.55)', size: 44, word: '' };
-}
-
-/** Oyunlardaki gibi ekran ortasında arka plansız patlayan COMBO yazısı */
-function ComboBurst({ combo, gain }: { combo: number; gain: number }) {
-  const scale = useSharedValue(0.4);
-  const opacity = useSharedValue(0);
-  const mult = comboMultiplier(combo);
-  const tier = comboTier(mult);
-  // Her patlama hafif farklı açıyla gelir
-  const tilt = combo % 2 === 0 ? -5 : 5;
-
-  useEffect(() => {
-    scale.value = 0.4;
-    opacity.value = 0;
-    scale.value = withSequence(
-      withTiming(1.35, { duration: 160, easing: Easing.out(Easing.back(2)) }),
-      withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) })
-    );
-    opacity.value = withSequence(
-      withTiming(1, { duration: 120 }),
-      withDelay(520, withTiming(0, { duration: 280, easing: Easing.out(Easing.quad) }))
-    );
-  }, [combo]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }, { rotate: `${tilt}deg` }],
-  }));
-
-  return (
-    <Animated.View pointerEvents="none" style={[styles.comboWrap, style]}>
-      <Text style={[styles.comboText, { color: tier.color, fontSize: tier.size, textShadowColor: tier.shadow }]}>
-        COMBO x{mult}
-      </Text>
-      {tier.word ? (
-        <Text style={[styles.comboWord, { color: tier.color, textShadowColor: tier.shadow }]}>{tier.word}</Text>
-      ) : null}
-      {gain > 0 ? (
-        <Text style={[styles.comboGain, { color: tier.color, textShadowColor: tier.shadow }]}>
-          +{formatTL(gain)}
-        </Text>
-      ) : null}
-    </Animated.View>
-  );
 }
 
 export default function GameScreen({ onBack }: Props) {
@@ -98,6 +36,10 @@ export default function GameScreen({ onBack }: Props) {
   }, [game.earned, reportGameEarned]);
 
   const boardSize = Math.min(width - 32, 420);
+
+  // Combo damgası çarpınca tahta kısaca sarsılır
+  const shake = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }, { translateY: shake.value * -0.5 }] }));
 
   // onSwipe her hamlede değişir; gesture'ın her render'da yeniden
   // kurulup bağlanmaması için ref üzerinden sabit bir köprü kullanılır
@@ -125,12 +67,14 @@ export default function GameScreen({ onBack }: Props) {
       <View style={styles.root}>
         <View style={{ width: boardSize }}>
           <Hud earned={game.earned} total={wallet} onRestart={game.restart} onBack={onBack} />
-          <BoardView tiles={game.tiles} size={boardSize} gridSize={GRID} />
+          <Animated.View style={shakeStyle}>
+            <BoardView tiles={game.tiles} size={boardSize} gridSize={GRID} />
+          </Animated.View>
         </View>
         {game.combo >= COMBO_START ? (
           // key YOK: bileşen combo değişince useEffect ile yeniden patlar;
           // her hamlede tam ekran katmanı söküp kurmak takılma yaratıyordu
-          <ComboBurst combo={game.combo} gain={game.comboGain} />
+          <ComboBurst combo={game.combo} gain={game.comboGain} shake={shake} />
         ) : null}
         {game.over ? (
           <Overlay mode="over" earned={game.earned} onRestart={game.restart} />
@@ -149,37 +93,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  comboWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 5,
-  },
-  comboText: {
-    fontFamily: GAME_FONT,
-    letterSpacing: 1,
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
-  },
-  comboWord: {
-    fontSize: 24,
-    fontFamily: GAME_FONT,
-    letterSpacing: 0.5,
-    marginTop: 2,
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  comboGain: {
-    fontSize: 28,
-    fontFamily: GAME_FONT,
-    fontVariant: ['tabular-nums'],
-    marginTop: 4,
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
 });

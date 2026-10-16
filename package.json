@@ -51,6 +51,7 @@
     "mahalle": "node scripts/build-mahalle.mjs",
     "icons": "node scripts/render-item-icons.mjs",
     "coins": "node scripts/render-coins.mjs",
+    "combo": "node scripts/render-combo.mjs",
     "logo": "node scripts/render-logo.mjs"
   },
   "private": true

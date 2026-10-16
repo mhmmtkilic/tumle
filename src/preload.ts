@@ -2,10 +2,11 @@ import { Asset } from 'expo-asset';
 import { initAudio } from './audio';
 import { ITEM_ICONS } from './components/itemIcons';
 import { COIN_IMAGES } from './components/coinImages';
+import { COMBO_IMAGES } from './components/comboImages';
 import { loadGlb } from './three/gl';
 
 // Eşya görselleri de baştan yüklenir: mağaza ve mahalle ilk açılışta boş kare göstermesin
-const IMAGE_MODULES = [require('../assets/logo.png'), ...Object.values(ITEM_ICONS), ...Object.values(COIN_IMAGES)];
+const IMAGE_MODULES = [require('../assets/logo.png'), ...Object.values(ITEM_ICONS), ...Object.values(COIN_IMAGES), ...Object.values(COMBO_IMAGES).map((c) => c.src)];
 
 const SOUND_MODULES = [
   require('../assets/sounds/coin.wav'),
@@ -15,6 +16,7 @@ const SOUND_MODULES = [
   require('../assets/sounds/crypto.wav'),
   require('../assets/sounds/epic.wav'),
   require('../assets/sounds/combo.wav'),
+  require('../assets/sounds/combo-big.wav'),
 ];
 
 /**

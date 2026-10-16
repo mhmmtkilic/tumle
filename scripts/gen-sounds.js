@@ -104,38 +104,6 @@ function gold() {
   return out;
 }
 
-// Combo: yükselen üç notalı parlak arpej (C6-E6-G6) + tepe parıltısı.
-// Oyunda seri büyüdükçe playbackRate ile tizleştirilir.
-function combo() {
-  const n = seconds(0.42);
-  const out = new Float64Array(n);
-  const notes = [
-    { at: 0, base: 1046.5, amp: 0.4 },
-    { at: 0.07, base: 1318.5, amp: 0.5 },
-    { at: 0.14, base: 1568.0, amp: 0.65 },
-  ];
-  for (const s of notes) {
-    const start = seconds(s.at);
-    for (let i = start; i < n; i++) {
-      const t = (i - start) / SR;
-      const env = Math.exp(-t * 14);
-      let v =
-        Math.sin(2 * Math.PI * s.base * t) +
-        0.4 * Math.sin(2 * Math.PI * s.base * 2.01 * t) +
-        0.15 * Math.sin(2 * Math.PI * s.base * 3.03 * t);
-      out[i] += v * env * s.amp * 0.35;
-    }
-  }
-  // tepe notasıyla birlikte kısa yıldız parıltısı
-  const spark = seconds(0.14);
-  for (let i = spark; i < n; i++) {
-    const t = (i - spark) / SR;
-    const env = Math.exp(-t * 30);
-    out[i] += Math.sin(2 * Math.PI * 4186 * t) * env * 0.12;
-  }
-  return out;
-}
-
 // Mücevher: kristal "tink" — cam gibi tiz, inharmonik çınlama
 function gem() {
   const n = seconds(0.6);
@@ -224,7 +192,8 @@ fs.mkdirSync(dir, { recursive: true });
 writeWav(path.join(dir, 'coin.wav'), coin());
 writeWav(path.join(dir, 'paper.wav'), paper());
 writeWav(path.join(dir, 'gold.wav'), gold());
-writeWav(path.join(dir, 'combo.wav'), combo());
+// combo.wav ve combo-big.wav artık sentezlenmiyor: Kenney "Casino Audio" +
+// "Interface Sounds" + "Music Jingles" (CC0) katmanlarından üretildi; üzerine yazma.
 writeWav(path.join(dir, 'gem.wav'), gem());
 writeWav(path.join(dir, 'crypto.wav'), crypto());
 writeWav(path.join(dir, 'epic.wav'), epic());

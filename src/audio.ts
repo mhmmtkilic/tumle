@@ -4,6 +4,7 @@ import { TileKind } from './game/levels';
 
 let players: Record<TileKind, AudioPlayer> | null = null;
 let comboPlayer: AudioPlayer | null = null;
+let comboBigPlayer: AudioPlayer | null = null;
 let musicPlayer: AudioPlayer | null = null;
 let soundEnabled = true;
 let hapticsEnabled = true;
@@ -52,9 +53,11 @@ export async function initAudio() {
       crypto: createAudioPlayer(require('../assets/sounds/crypto.wav')),
       epic: createAudioPlayer(require('../assets/sounds/epic.wav')),
     };
+    // Combo sesleri: Kenney Casino/Interface/Music Jingles paketlerinden (CC0)
     comboPlayer = createAudioPlayer(require('../assets/sounds/combo.wav'));
+    comboBigPlayer = createAudioPlayer(require('../assets/sounds/combo-big.wav'));
     // Isınma turu: sessiz çalıp durdur ki ilk birleşmede ses gecikmesin
-    const all = [...Object.values(players), comboPlayer];
+    const all = [...Object.values(players), comboPlayer, comboBigPlayer];
     for (const p of all) {
       p.volume = 0;
       p.play();
@@ -69,6 +72,7 @@ export async function initAudio() {
   } catch {
     players = null; // ses yoksa oyun sessiz devam eder
     comboPlayer = null;
+    comboBigPlayer = null;
   }
 }
 
@@ -96,12 +100,20 @@ export function playMove() {
   }
 }
 
-/** Combo arpeji: seri büyüdükçe ses tizleşip hızlanır, haptik sertleşir */
+/** Büyük combo eşikleri: SÜPER (x6), ÇILGINCA (x8), EFSANE (x10) */
+export const COMBO_MILESTONES = [6, 8, 10];
+
+/**
+ * Combo sesi: para yığını + cam çın; seri büyüdükçe tizleşir. Eşiğe ulaşınca
+ * (x6, x8, x10) kısa zafer müziği çalar. Haptik seriyle sertleşir.
+ */
 export function playCombo(mult: number) {
-  if (soundEnabled && comboPlayer) {
-    comboPlayer.setPlaybackRate(Math.min(1 + (mult - 3) * 0.06, 1.5));
-    comboPlayer.seekTo(0);
-    comboPlayer.play();
+  const big = COMBO_MILESTONES.includes(mult);
+  const p = big ? comboBigPlayer : comboPlayer;
+  if (soundEnabled && p) {
+    p.setPlaybackRate(big ? 1 : Math.min(1 + (mult - 3) * 0.06, 1.45));
+    p.seekTo(0);
+    p.play();
   }
   if (hapticsEnabled) {
     if (mult >= 8) {
