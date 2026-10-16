@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import GameButton from './GameButton';
+import ChunkyButton from '../ui/game/ChunkyButton';
 import { formatTL } from '../game/levels';
+import { colors, numeric, panelStyle, space, type } from '../ui/theme';
 
 interface Props {
   mode: 'over' | 'won' | 'final';
@@ -14,36 +15,37 @@ interface Props {
 const CONTENT = {
   over: {
     emoji: '💸',
-    title: 'Cüzdan Tıkandı!',
+    title: 'Cüzdan Tıkandı',
     msg: 'Hamle kalmadı, ekonomi kilitlendi. Enflasyona yenildin ama skorun cebinde.',
   },
   won: {
     emoji: '🏆',
-    title: 'Külçeye Ulaştın!',
+    title: 'Külçeye Ulaştın',
     msg: 'Kuruştan başladın, külçeyi kaptın. Merkez bankası seni arayabilir. Ama zincir burada bitmiyor…',
   },
   final: {
     emoji: '🌍',
-    title: 'Dünya Serveti Sende!',
+    title: 'Dünya Serveti Sende',
     msg: 'Bir kuruştan dünyanın servetine. Ekonomi kitapları artık seni yazacak.',
   },
 } as const;
 
 export default function Overlay({ mode, earned, onRestart, onContinue }: Props) {
-  const isOver = mode === 'over';
   const c = CONTENT[mode];
+  const canContinue = mode !== 'over' && !!onContinue;
   return (
     <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
       <View style={styles.card}>
         <Text style={styles.emoji}>{c.emoji}</Text>
         <Text style={styles.title}>{c.title}</Text>
         <Text style={styles.msg}>{c.msg}</Text>
-        <Text style={styles.score} numberOfLines={1} adjustsFontSizeToFit>Kazanç: {formatTL(earned)}</Text>
+        <Text style={styles.scoreLabel}>Kazanç</Text>
+        <Text style={styles.score} numberOfLines={1} adjustsFontSizeToFit>
+          {formatTL(earned)}
+        </Text>
         <View style={styles.buttons}>
-          {!isOver && onContinue ? (
-            <GameButton label="Devam Et" size="md" variant="white" onPress={onContinue} />
-          ) : null}
-          <GameButton label="Yeniden Başla" size="md" variant="green" onPress={onRestart} />
+          {canContinue ? <ChunkyButton label="Devam Et" size="large" skin="green" onPress={onContinue} /> : null}
+          <ChunkyButton label="Yeniden Başla" size={canContinue ? 'medium' : 'large'} skin={canContinue ? 'blue' : 'yellow'} onPress={onRestart} />
         </View>
       </View>
     </Animated.View>
@@ -57,45 +59,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(242,246,243,0.88)',
+    backgroundColor: colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    paddingVertical: 28,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    width: '84%',
-    maxWidth: 360,
-    shadowColor: '#26332C',
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  emoji: { fontSize: 44, marginBottom: 8 },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#26332C',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  msg: {
-    fontSize: 14,
-    color: '#66766D',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  score: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#3E8E68',
-    marginBottom: 18,
-  },
-  buttons: { flexDirection: 'row', gap: 10 },
+  card: { ...panelStyle, padding: space.xl, paddingTop: space.xxl, alignItems: 'center', width: '88%', maxWidth: 360 },
+  emoji: { fontSize: 52, marginBottom: space.s },
+  title: { ...type.title1, color: colors.label, textAlign: 'center' },
+  msg: { ...type.subhead, color: colors.secondaryLabel, textAlign: 'center', marginTop: space.s, lineHeight: 20 },
+  scoreLabel: { ...type.overline, color: colors.secondaryLabel, marginTop: space.l },
+  score: { ...type.largeTitle, ...numeric, color: colors.gold },
+  buttons: { alignSelf: 'stretch', gap: space.m, marginTop: space.xl },
 });

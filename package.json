@@ -3,13 +3,21 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@dicebear/avataaars": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
+    "@expo-google-fonts/baloo-2": "^0.4.2",
+    "@expo-google-fonts/nunito": "^0.4.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "buffer": "^6.0.3",
     "expo": "^57.0.0",
     "expo-asset": "~57.0.18",
     "expo-audio": "~57.0.5",
+    "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
+    "expo-gl": "~57.0.2",
     "expo-haptics": "~57.0.3",
     "expo-sharing": "~57.0.21",
+    "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
@@ -17,11 +25,21 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
-    "react-native-view-shot": "5.1.0",
-    "react-native-worklets": "0.10.1"
+    "react-native-worklets": "0.10.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
+    "@expo-google-fonts/roboto": "^0.4.3",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@types/react": "~19.2.4",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
+    "esbuild": "^0.28.2",
+    "pngjs": "^7.0.0",
+    "puppeteer-core": "^25.12.0",
+    "react-dom": "^19.2.3",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -29,7 +47,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "sounds": "node scripts/gen-sounds.js"
+    "sounds": "node scripts/gen-sounds.js",
+    "mahalle": "node scripts/build-mahalle.mjs",
+    "icons": "node scripts/render-item-icons.mjs",
+    "coins": "node scripts/render-coins.mjs",
+    "logo": "node scripts/render-logo.mjs"
   },
   "private": true
 }

@@ -38,23 +38,36 @@ export default function BoardView({ tiles, size, gridSize }: Props) {
     return out;
   }, [gridSize, cellSize, gap]);
 
+  // Dış çerçeve (kontur + alt kalınlık) ayrı katman: taş koordinatları tahtanın
+  // kendi kutusuna göre hesaplanır, çerçeve onları kaydırmaz
   return (
-    <View style={[styles.board, { width: size, height: size, borderRadius: size * 0.04 }]}>
-      {cells}
-      {tiles.map((t) => (
-        <TileView key={t.id} tile={t} cellSize={cellSize} gap={gap} />
-      ))}
+    <View style={[styles.frame, { borderRadius: size * 0.04 + FRAME }]}>
+      <View style={[styles.board, { width: size, height: size, borderRadius: size * 0.04 }]}>
+        {cells}
+        {tiles.map((t) => (
+          <TileView key={t.id} tile={t} cellSize={cellSize} gap={gap} />
+        ))}
+      </View>
     </View>
   );
 }
 
+/** Çerçeve kalınlığı: oyun panelleriyle aynı koyu dış çizgi, altta derinlik */
+const FRAME = 3;
+
 const styles = StyleSheet.create({
+  frame: {
+    backgroundColor: '#1B2238',
+    padding: FRAME,
+    paddingBottom: FRAME + 5,
+    alignSelf: 'center',
+  },
   board: {
-    backgroundColor: '#E3EAE4',
+    backgroundColor: '#24406E',
     overflow: 'hidden',
   },
   cell: {
     position: 'absolute',
-    backgroundColor: '#EDF2ED',
+    backgroundColor: '#33558C',
   },
 });

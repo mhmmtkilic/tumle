@@ -1,12 +1,14 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import BgPattern from '../components/BgPattern';
 import BadgeSvg from '../components/BadgeSvg';
-import GameButton from '../components/GameButton';
+import { CheckIcon } from '../components/icons';
+import ChunkyButton from '../ui/game/ChunkyButton';
+import GameTopBar from '../ui/game/GameTopBar';
 import { ACHIEVEMENTS, AchievementDef, rewardOf } from '../achievements/defs';
 import { formatTL } from '../game/levels';
 import * as Haptics from 'expo-haptics';
 import { useAchievements } from '../achievements/AchievementsContext';
+import { colors, numeric, panelStyle, radius, space, type } from '../ui/theme';
 
 interface Props {
   onBack: () => void;
@@ -15,7 +17,7 @@ interface Props {
 function BadgeCard({ def, unlocked, claimed, onClaim }: { def: AchievementDef; unlocked: boolean; claimed: boolean; onClaim: () => void }) {
   const reward = formatTL(rewardOf(def));
   return (
-    <View style={[styles.card, !unlocked && styles.cardLocked, unlocked && !claimed && styles.cardReady]}>
+    <View style={[styles.card, !unlocked && styles.cardLocked]}>
       <BadgeSvg id={def.id} tier={def.tier} locked={!unlocked} size={84} />
       <Text style={[styles.name, !unlocked && styles.nameLocked]}>{def.title}</Text>
       <Text style={styles.desc}>{def.desc}</Text>
@@ -24,9 +26,9 @@ function BadgeCard({ def, unlocked, claimed, onClaim }: { def: AchievementDef; u
           {reward}
         </Text>
         {claimed ? (
-          <Text style={styles.claimedText}>Alındı ✓</Text>
+          <Text style={styles.claimedText}>Alındı</Text>
         ) : unlocked ? (
-          <GameButton label="Ödülü Al" size="sm" variant="amber" onPress={onClaim} textStyle={styles.claimLabel} />
+          <ChunkyButton label="Ödülü Al" size="small" skin="green" icon={<CheckIcon size={20} />} onPress={onClaim} />
         ) : null}
       </View>
     </View>
@@ -42,18 +44,18 @@ export default function AchievementsScreen({ onBack }: Props) {
 
   return (
     <View style={styles.root}>
-      <BgPattern />
-      <View style={styles.header}>
-        <GameButton label="‹" size="sm" variant="white" onPress={onBack} textStyle={styles.backIcon} />
-        <View style={styles.titleWrap} pointerEvents="none">
-          <Text style={styles.title}>Başarımlar</Text>
-        </View>
-        <View style={[styles.countChip, claimable > 0 && styles.countChipReady]}>
-          <Text style={[styles.countText, claimable > 0 && styles.countTextReady]}>
-            {claimable > 0 ? `${claimable} ödül` : `${unlocked.length}/${ACHIEVEMENTS.length}`}
-          </Text>
-        </View>
-      </View>
+      <GameTopBar
+        title="Başarımlar"
+        onBack={onBack}
+        style={styles.bar}
+        right={
+          <View style={[styles.countChip, claimable > 0 && styles.countReady]}>
+            <Text style={styles.count} numberOfLines={1} adjustsFontSizeToFit>
+              {claimable > 0 ? `${claimable} ödül` : `${unlocked.length}/${ACHIEVEMENTS.length}`}
+            </Text>
+          </View>
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         <View style={styles.grid}>
@@ -62,74 +64,46 @@ export default function AchievementsScreen({ onBack }: Props) {
           ))}
         </View>
 
-        <Text style={styles.hint}>Gri rozetler seni bekliyor. Her rozetin ödülü cüzdana. 🏅</Text>
+        <Text style={styles.hint}>Gri rozetler seni bekliyor. Her rozetin ödülü cüzdana.</Text>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 16 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 8,
-  },
-  backIcon: { fontSize: 22, lineHeight: 24 },
-  titleWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: '800', color: '#26332C' },
+  root: { flex: 1, paddingHorizontal: space.l },
+  bar: { marginBottom: space.m },
   countChip: {
-    backgroundColor: '#E3EAE4',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  countText: { fontSize: 15, fontWeight: '800', color: '#3E8E68', fontVariant: ['tabular-nums'] },
-  list: { paddingTop: 8, paddingBottom: 28 },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  card: {
-    width: '48%',
-    flexGrow: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#DFE8E2',
-    paddingVertical: 14,
-    paddingHorizontal: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 2.5,
+    borderColor: colors.outline,
+    borderBottomWidth: 4.5,
+    paddingHorizontal: space.s,
+    paddingVertical: 2,
+    minWidth: 60,
     alignItems: 'center',
   },
-  cardLocked: {
-    backgroundColor: '#F6F8F6',
+  countReady: { backgroundColor: '#43B52A' },
+  count: { ...type.headline, fontSize: 15, ...numeric, color: colors.label },
+  list: { paddingBottom: space.xxl },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
+  card: {
+    ...panelStyle,
+    width: '47%',
+    flexGrow: 1,
+    paddingVertical: space.l,
+    paddingHorizontal: space.m,
+    alignItems: 'center',
   },
-  cardReady: { borderColor: '#F6B93B' },
-  rewardRow: { marginTop: 8, alignItems: 'center', gap: 6, alignSelf: 'stretch' },
-  reward: { color: '#C48815', fontWeight: '900', fontSize: 15, fontVariant: ['tabular-nums'] },
-  rewardLocked: { color: '#9AA8A0', fontWeight: '700' },
-  rewardClaimed: { color: '#3E8E68' },
-  claimLabel: { fontSize: 13 },
-  claimedText: { color: '#3E8E68', fontWeight: '800', fontSize: 12 },
-  countChipReady: { backgroundColor: '#F6B93B' },
-  countTextReady: { color: '#5C430D' },
-  name: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#26332C',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  nameLocked: { color: '#9AA8A0' },
-  desc: {
-    fontSize: 11.5,
-    color: '#66766D',
-    textAlign: 'center',
-    marginTop: 3,
-    lineHeight: 15,
-  },
-  hint: { textAlign: 'center', color: '#9AA8A0', fontSize: 13, marginTop: 18 },
+  cardLocked: { backgroundColor: '#2A3F63' },
+  name: { ...type.headline, color: colors.label, marginTop: space.s, textAlign: 'center' },
+  nameLocked: { color: colors.secondaryLabel },
+  desc: { ...type.caption, color: colors.secondaryLabel, textAlign: 'center', marginTop: 2, lineHeight: 16 },
+  rewardRow: { marginTop: space.m, alignItems: 'center', gap: space.s, alignSelf: 'stretch' },
+  reward: { ...type.title3, ...numeric, color: colors.gold },
+  rewardLocked: { color: colors.tertiaryLabel },
+  rewardClaimed: { color: colors.secondaryLabel },
+  claimedText: { ...type.footnote, color: colors.accent },
+  hint: { ...type.subhead, textAlign: 'center', color: colors.label, marginTop: space.xl, ...{ textShadowColor: colors.outline, textShadowOffset: { width: 0, height: 1.5 }, textShadowRadius: 0.1 } },
 });

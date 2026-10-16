@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import MoneySvg from './MoneySvg';
+import { COIN_IMAGES } from './coinImages';
 import { Tile } from '../game/engine';
 import { LEVELS } from '../game/levels';
 
@@ -80,7 +80,9 @@ function TileView({ tile, cellSize, gap }: Props) {
         style,
       ]}
     >
-      <MoneySvg level={tile.level} />
+      {/* Para çizimi hazır resim (MoneySvg'nin birebir PNG'si, scripts/render-coins.mjs):
+          her doğan/birleşen taşta SVG ağacı kurmak UI iş parçacığını kilitliyordu */}
+      <Image source={COIN_IMAGES[tile.level]} style={styles.art} resizeMode="contain" fadeDuration={0} />
     </Animated.View>
   );
 }
@@ -94,6 +96,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  art: { width: '100%', height: '100%' },
 });
 
 // move() her hamlede tüm taş nesnelerini yeniden yarattığı için referans

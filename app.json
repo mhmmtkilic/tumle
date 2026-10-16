@@ -1,24 +1,28 @@
 {
   "expo": {
-    "name": "Tümle 2048",
+    "name": "Tümle 2026",
     "slug": "tumle-2048",
-    "backgroundColor": "#F2F6F3",
+    "backgroundColor": "#4DA8F0",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mhmmtkilicc.tumle2048"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FAB52A",
+        "backgroundColor": "#4DA8F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
@@ -32,7 +36,22 @@
       "expo-audio",
       "expo-asset",
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#4DA8F0",
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
+          "android": {
+            "backgroundColor": "#4DA8F0",
+            "image": "./assets/splash-logo-android.png",
+            "imageWidth": 288
+          }
+        }
+      ],
+      "expo-font"
     ]
   }
 }

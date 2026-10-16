@@ -1,70 +1,84 @@
 import React from 'react';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { ICON_SPECS, IconName, Layer, OUTLINE, OUTLINE_W, SHADOW_DY } from './gameIconSpecs';
 
-/** Klasik dişli çark (ayarlar) ikonu */
-export function GearIcon({ size = 20, color = '#26332C', holeColor = '#FFFFFF' }: {
+/*
+ * Renkli oyun ikonları (Clash Royale tarzı): her ikon kendi renginde, kalın
+ * koyu konturlu, altta kabartma gölgesi, üstte parlak yansıma. Çizimler
+ * gameIconSpecs.ts'te; önizleme: node scripts/preview-icons.mjs <png>.
+ * Hepsi aynı imzayı paylaşır; renkler ikonun kendisinde olduğundan `color`
+ * yok sayılır.
+ */
+
+export interface IconProps {
   size?: number;
   color?: string;
-  holeColor?: string;
-}) {
-  const teeth = [];
-  for (let i = 0; i < 8; i++) {
-    teeth.push(
-      <Rect
-        key={i}
-        x={10.4}
-        y={1.5}
-        width={3.2}
-        height={5}
-        rx={1.4}
-        fill={color}
-        transform={`rotate(${i * 45} 12 12)`}
-      />
+}
+
+function shape(l: Layer, key: string, props: Record<string, unknown>) {
+  if (l.circle) return <Circle key={key} cx={l.circle[0]} cy={l.circle[1]} r={l.circle[2]} {...props} />;
+  if (l.rect) return <Rect key={key} x={l.rect[0]} y={l.rect[1]} width={l.rect[2]} height={l.rect[3]} rx={l.rect[4]} {...props} />;
+  return <Path key={key} d={l.d} {...props} />;
+}
+
+const GameIcon = React.memo(function GameIcon({ name, size = 24 }: { name: IconName; size?: number }) {
+  const layers: Layer[] = ICON_SPECS[name];
+  const solid = layers.filter((l) => !l.shine);
+  const outline = (dy: number) =>
+    solid.map((l, i) =>
+      shape(l, `o${dy}-${i}`, {
+        translateY: dy,
+        fill: l.fill ? OUTLINE : 'none',
+        stroke: OUTLINE,
+        strokeWidth: (l.sw ?? 0) + OUTLINE_W,
+        strokeLinejoin: 'round',
+        strokeLinecap: 'round',
+      })
     );
-  }
   return (
-    <Svg viewBox="0 0 24 24" width={size} height={size}>
-      {teeth}
-      <Circle cx={12} cy={12} r={7} fill={color} />
-      <Circle cx={12} cy={12} r={3.2} fill={holeColor} />
+    <Svg viewBox="-3 -3 54 57" width={size} height={size * (57 / 54)}>
+      {outline(SHADOW_DY)}
+      {outline(0)}
+      {solid.map((l, i) =>
+        shape(l, `b${i}`, {
+          fill: l.fill ?? 'none',
+          stroke: l.stroke ?? 'none',
+          strokeWidth: l.sw ?? 0,
+          strokeLinejoin: 'round',
+          strokeLinecap: 'round',
+        })
+      )}
+      {layers.filter((l) => l.shine).map((l, i) => shape(l, `s${i}`, { fill: '#FFFFFF', fillOpacity: 0.45 }))}
     </Svg>
   );
+});
+
+const icon = (name: IconName) =>
+  function Icon({ size }: IconProps) {
+    return <GameIcon name={name} size={size} />;
+  };
+
+export const ChevronLeftIcon = icon('back');
+export const GearIcon = icon('gear');
+export const TrophyIcon = icon('trophy');
+export const BagIcon = icon('bag');
+export const ShareIcon = icon('share');
+export const PlusIcon = icon('plus');
+export const MinusIcon = icon('minus');
+export const RestartIcon = icon('restart');
+export const ShuffleIcon = icon('shuffle');
+export const PencilIcon = icon('pencil');
+export const CheckIcon = icon('check');
+export const XmarkIcon = icon('cross');
+export const HouseIcon = icon('house');
+export const VibrateIcon = icon('vibrate');
+export const TrashIcon = icon('trash');
+export const CrownIcon = icon('crown');
+
+export function SpeakerIcon({ muted, size }: IconProps & { muted?: boolean }) {
+  return <GameIcon name={muted ? 'speakerOff' : 'speaker'} size={size} />;
 }
 
-/** Tenteli dükkan (mağaza) ikonu: kırmızı-beyaz tente, vitrin, kapı */
-export function ShopIcon({ size = 20, color = '#3E8E68', doorColor = '#FFFFFF' }: {
-  size?: number;
-  color?: string;
-  doorColor?: string;
-}) {
-  return (
-    <Svg viewBox="0 0 24 24" width={size} height={size}>
-      {/* gövde */}
-      <Rect x={4} y={9.5} width={16} height={11} rx={1.5} fill={color} />
-      {/* vitrin */}
-      <Rect x={6} y={12} width={5.5} height={4.5} rx={0.8} fill="#D9F0FA" />
-      <Rect x={6} y={12} width={5.5} height={1.6} fill="#FFFFFF" opacity={0.7} />
-      {/* kapı */}
-      <Rect x={13.5} y={12} width={4.5} height={8.5} rx={0.9} fill={doorColor} />
-      <Circle cx={17} cy={16.5} r={0.6} fill={color} />
-      {/* tente: kırmızı-beyaz dilimler */}
-      <Path d="M2.5 5 L21.5 5 L21.5 8.2 a2.375 2.375 0 0 1 -4.75 0 a2.375 2.375 0 0 1 -4.75 0 a2.375 2.375 0 0 1 -4.75 0 a2.375 2.375 0 0 1 -4.75 0 Z" fill="#E2604A" />
-      <Path d="M7.25 5 L12 5 L12 8.2 a2.375 2.375 0 0 1 -4.75 0 Z" fill="#FFFFFF" />
-      <Path d="M16.75 5 L21.5 5 L21.5 8.2 a2.375 2.375 0 0 1 -4.75 0 Z" fill="#FFFFFF" />
-      <Rect x={2.5} y={3.6} width={19} height={1.8} rx={0.9} fill="#A83E2C" />
-    </Svg>
-  );
-}
-
-/** Kupa (başarımlar) ikonu */
-export function TrophyIcon({ size = 20, color = '#26332C' }: { size?: number; color?: string }) {
-  return (
-    <Svg viewBox="0 0 24 24" width={size} height={size}>
-      <Path d="M7 3 L17 3 L16.2 10 A4.5 4.5 0 0 1 7.8 10 Z" fill={color} />
-      <Path d="M6.6 4.4 q-3.6 0.5 -2.7 4 q0.9 2.4 3.6 2.4" fill="none" stroke={color} strokeWidth={1.6} />
-      <Path d="M17.4 4.4 q3.6 0.5 2.7 4 q-0.9 2.4 -3.6 2.4" fill="none" stroke={color} strokeWidth={1.6} />
-      <Rect x={10.8} y={13} width={2.4} height={3.6} fill={color} />
-      <Rect x={7.5} y={16.6} width={9} height={2.6} rx={1.2} fill={color} />
-    </Svg>
-  );
+export function MusicIcon({ muted, size }: IconProps & { muted?: boolean }) {
+  return <GameIcon name={muted ? 'musicOff' : 'music'} size={size} />;
 }

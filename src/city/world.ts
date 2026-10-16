@@ -1,10 +1,11 @@
 /*
- * Dünya: tek sahne — Mahallem. Çimen arsalar + yol. Bloklar: lot1 (baştan
- * açık), lot2 (Yan Arsa), sahil (Sahil Arsası).
+ * Dünya: tek sahne — Mahallem (3D). Üç arsa bloğu doğu yönünde yan yana
+ * dizilir, aralarında ve çevrelerinde yollar vardır: lot1 (baştan açık),
+ * lot2 (Yan Arsa), sahil (Sahil Arsası, doğusu deniz).
  *
- * Her blok CELLS×CELLS izometrik hücreye bölünür (grid.ts). Blok "açılması"
- * hep aynı mekaniktir: `unlockedBy` eşyası alınınca blok toz+konfetiyle
- * sahneye kayar.
+ * Birim: 1 = bir ızgara hücresi (3D'de 1 birim). Her blok CELLS×CELLS
+ * hücredir (grid.ts). Kilitli blok sahnede "satılık" arsa olarak durur;
+ * `unlockedBy` eşyası alınınca açılır.
  */
 
 export type BlockId = 'lot1' | 'lot2' | 'sahil';
@@ -12,29 +13,32 @@ export type BlockId = 'lot1' | 'lot2' | 'sahil';
 export interface BlockDef {
   id: BlockId;
   name: string;
-  /** Bloğun tepe (arka) köşesi, sahne dünya koordinatında */
-  top: { x: number; y: number };
-  /** Bu eşya alınmadan blok yoktur. undefined = baştan açık */
+  /** Bloğun kuzeybatı köşesi (hücre (0,0)'ın köşesi), dünya x/z */
+  x: number;
+  z: number;
+  /** Zemin türü */
+  ground: 'grass' | 'sand';
+  /** Bu eşya alınmadan blok kilitlidir. undefined = baştan açık */
   unlockedBy?: string;
-  /** Açılış animasyonunda bloğun geldiği yön (dünya birimi) */
-  reveal: { dx: number; dy: number };
 }
 
-/** Blok genişliği (dünya birimi): 2:1 izometrik eşkenar dörtgen 380×190 */
-export const BLOCK_W = 380;
-export const BLOCK_H = 190;
+/** Blok kenarı (hücre) ve bloklar arası yol genişliği */
+export const BLOCK_SIZE = 6;
+export const ROAD = 1;
 
 export const MAHALLE_NAME = 'Mahallem';
 
 const BLOCK_LIST: BlockDef[] = [
-  { id: 'lot1', name: 'Mahalle', top: { x: 200, y: 120 }, reveal: { dx: 0, dy: 0 } },
-  { id: 'lot2', name: 'Yan Arsa', top: { x: 390, y: 25 }, unlockedBy: 'arsa', reveal: { dx: 46, dy: -23 } },
-  { id: 'sahil', name: 'Sahil Arsası', top: { x: 580, y: 154 }, unlockedBy: 'arsa2', reveal: { dx: 46, dy: 23 } },
+  { id: 'lot1', name: 'Mahalle', x: 0, z: 0, ground: 'grass' },
+  { id: 'lot2', name: 'Yan Arsa', x: BLOCK_SIZE + ROAD, z: 0, ground: 'grass', unlockedBy: 'arsa' },
+  { id: 'sahil', name: 'Sahil Arsası', x: 2 * (BLOCK_SIZE + ROAD), z: 0, ground: 'sand', unlockedBy: 'arsa2' },
 ];
 
 export const BLOCKS: Record<BlockId, BlockDef> = Object.fromEntries(
   BLOCK_LIST.map((b) => [b.id, b])
 ) as Record<BlockId, BlockDef>;
+
+export const ALL_BLOCKS: readonly BlockDef[] = BLOCK_LIST;
 
 export function getBlock(id: BlockId): BlockDef {
   return BLOCKS[id];
@@ -52,25 +56,4 @@ export function isBlockOpen(id: BlockId, owned: readonly string[]): boolean {
 /** Açık bloklar, tanım sırasıyla */
 export function openBlocks(owned: readonly string[]): BlockId[] {
   return BLOCK_LIST.filter((b) => isBlockOpen(b.id, owned)).map((b) => b.id);
-}
-
-export interface Frame {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-/** Sahnenin sabit çerçeveleri (mevcut sahne çizimleriyle birebir) */
-const FRAMES: Record<BlockId, Frame> = {
-  lot1: { x: 0, y: 0, w: 400, h: 360 },
-  lot2: { x: 0, y: 0, w: 640, h: 360 },
-  sahil: { x: 0, y: 0, w: 780, h: 360 },
-};
-
-/** Sahnenin görünür dünya çerçevesi (viewBox); arsalar açıldıkça sabit adımlarla genişler */
-export function sceneFrame(owned: readonly string[]): Frame {
-  const open = openBlocks(owned);
-  const last = open[open.length - 1];
-  return FRAMES[last] ?? FRAMES.lot1;
 }

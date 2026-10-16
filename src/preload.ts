@@ -1,7 +1,11 @@
 import { Asset } from 'expo-asset';
 import { initAudio } from './audio';
+import { ITEM_ICONS } from './components/itemIcons';
+import { COIN_IMAGES } from './components/coinImages';
+import { loadGlb } from './three/gl';
 
-const IMAGE_MODULES = [require('../assets/logo.png')];
+// Eşya görselleri de baştan yüklenir: mağaza ve mahalle ilk açılışta boş kare göstermesin
+const IMAGE_MODULES = [require('../assets/logo.png'), ...Object.values(ITEM_ICONS), ...Object.values(COIN_IMAGES)];
 
 const SOUND_MODULES = [
   require('../assets/sounds/coin.wav'),
@@ -18,7 +22,7 @@ const SOUND_MODULES = [
  * Son adım ses motorunun başlatılmasıdır; hata olsa da ilerleme tamamlanır.
  */
 export async function preloadAll(onProgress: (p: number) => void): Promise<void> {
-  const totalSteps = IMAGE_MODULES.length + SOUND_MODULES.length + 1;
+  const totalSteps = IMAGE_MODULES.length + SOUND_MODULES.length + 2;
   let done = 0;
   const tick = () => onProgress(++done / totalSteps);
 
@@ -30,6 +34,14 @@ export async function preloadAll(onProgress: (p: number) => void): Promise<void>
     }
     tick();
   }
+
+  // 3D mahalle modelleri ayrıştırılıp bellekte tutulur (sahne açılışta bir kez kurulur)
+  try {
+    await loadGlb(require('../assets/3d/mahalle.glb'));
+  } catch {
+    // sahne kendisi yeniden dener
+  }
+  tick();
 
   await initAudio();
   tick();

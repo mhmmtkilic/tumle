@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { colors, panelStyle, type } from '../ui/theme';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -249,27 +250,22 @@ export function useAchievements(): AchApi {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // Oyun paneli dili: lacivert, koyu kalın kontur, altta kalınlık (theme.panelStyle)
   toast: {
+    ...panelStyle,
     position: 'absolute',
     top: 64,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#26332C',
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     zIndex: 100,
-    shadowColor: '#26332C',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   toastBadge: { width: 40, height: 44 },
   toastText: {},
-  toastTitle: { color: '#9DBBA9', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 },
-  toastReward: { color: '#F6B93B', fontSize: 11, fontWeight: '800', marginTop: 1 },
-  toastName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  toastTitle: { ...type.overline, color: colors.accent },
+  toastReward: { ...type.caption, color: colors.gold, marginTop: 1 },
+  toastName: { ...type.headline, color: colors.label },
 });

@@ -10,7 +10,6 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import BgPattern from '../components/BgPattern';
 import BoardView from '../components/BoardView';
 import Hud from '../components/Hud';
 import Overlay from '../components/Overlay';
@@ -19,6 +18,7 @@ import { formatTL } from '../game/levels';
 import { COMBO_START, comboMultiplier, useGame } from '../useGame';
 import { useAchievements } from '../achievements/AchievementsContext';
 import { useEconomy } from '../economy/EconomyContext';
+import { GAME_FONT } from '../ui/theme';
 
 const SWIPE_THRESHOLD = 24;
 
@@ -123,7 +123,6 @@ export default function GameScreen({ onBack }: Props) {
   return (
     <GestureDetector gesture={pan}>
       <View style={styles.root}>
-        <BgPattern />
         <View style={{ width: boardSize }}>
           <Hud earned={game.earned} total={wallet} onRestart={game.restart} onBack={onBack} />
           <BoardView tiles={game.tiles} size={boardSize} gridSize={GRID} />
@@ -162,22 +161,22 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   comboText: {
-    fontWeight: '900',
+    fontFamily: GAME_FONT,
     letterSpacing: 1,
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
   },
   comboWord: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 24,
+    fontFamily: GAME_FONT,
     letterSpacing: 0.5,
     marginTop: 2,
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   comboGain: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontSize: 28,
+    fontFamily: GAME_FONT,
     fontVariant: ['tabular-nums'],
     marginTop: 4,
     textShadowOffset: { width: 0, height: 2 },
