@@ -5,6 +5,7 @@ import { TileKind } from './game/levels';
 let players: Record<TileKind, AudioPlayer> | null = null;
 let comboPlayer: AudioPlayer | null = null;
 let comboBigPlayer: AudioPlayer | null = null;
+let achievementPlayer: AudioPlayer | null = null;
 let musicPlayer: AudioPlayer | null = null;
 let soundEnabled = true;
 let hapticsEnabled = true;
@@ -56,8 +57,9 @@ export async function initAudio() {
     // Combo sesleri: Kenney Casino/Interface/Music Jingles paketlerinden (CC0)
     comboPlayer = createAudioPlayer(require('../assets/sounds/combo.wav'));
     comboBigPlayer = createAudioPlayer(require('../assets/sounds/combo-big.wav'));
+    achievementPlayer = createAudioPlayer(require('../assets/sounds/achievement.wav'));
     // Isınma turu: sessiz çalıp durdur ki ilk birleşmede ses gecikmesin
-    const all = [...Object.values(players), comboPlayer, comboBigPlayer];
+    const all = [...Object.values(players), comboPlayer, comboBigPlayer, achievementPlayer];
     for (const p of all) {
       p.volume = 0;
       p.play();
@@ -73,6 +75,7 @@ export async function initAudio() {
     players = null; // ses yoksa oyun sessiz devam eder
     comboPlayer = null;
     comboBigPlayer = null;
+    achievementPlayer = null;
   }
 }
 
@@ -100,18 +103,18 @@ export function playMove() {
   }
 }
 
-/** Büyük combo eşikleri: SÜPER (x6), ÇILGINCA (x8), EFSANE (x10) */
-export const COMBO_MILESTONES = [6, 8, 10];
+/** Büyük combo eşikleri: SÜPER (x6), ÇILGINCA (x8), EFSANE (x10), DURDURULAMAZ (x15), İMKANSIZ (x20) */
+export const COMBO_MILESTONES = [6, 8, 10, 15, 20];
 
 /**
  * Combo sesi: para yığını + cam çın; seri büyüdükçe tizleşir. Eşiğe ulaşınca
- * (x6, x8, x10) kısa zafer müziği çalar. Haptik seriyle sertleşir.
+ * (x6, x8, x10, x15, x20) kısa zafer müziği çalar. Haptik seriyle sertleşir.
  */
 export function playCombo(mult: number) {
   const big = COMBO_MILESTONES.includes(mult);
   const p = big ? comboBigPlayer : comboPlayer;
   if (soundEnabled && p) {
-    p.setPlaybackRate(big ? 1 : Math.min(1 + (mult - 3) * 0.06, 1.45));
+    p.setPlaybackRate(big ? 1 : Math.min(1 + (mult - 3) * 0.045, 1.7));
     p.seekTo(0);
     p.play();
   }
@@ -122,4 +125,13 @@ export function playCombo(mult: number) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
   }
+}
+
+/** Başarım açıldı: para yığını + zafer müziği + kutlama titreşimi */
+export function playAchievement() {
+  if (soundEnabled && achievementPlayer) {
+    achievementPlayer.seekTo(0);
+    achievementPlayer.play();
+  }
+  if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 }

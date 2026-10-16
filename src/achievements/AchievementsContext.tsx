@@ -1,21 +1,24 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { colors, panelStyle, type } from '../ui/theme';
-import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import { StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ACHIEVEMENTS, AchievementDef, rewardOf } from './defs';
+import { ACHIEVEMENTS, AchievementDef, AchStat, rewardOf } from './defs';
 import { KULCE_LEVEL, levelKind, MAX_LEVEL, TileKind } from '../game/levels';
 import { SPAWN_FLOOR_GAP } from '../game/engine';
 import { PLACED_ITEMS } from '../economy/items';
 import { useEconomy } from '../economy/EconomyContext';
-import { playMerge } from '../audio';
-import { formatTL } from '../game/levels';
-import BadgeSvg from '../components/BadgeSvg';
+import { playAchievement, playMerge } from '../audio';
+import AchievementCelebration from '../components/AchievementCelebration';
 
 // v2: başarımlar sınırsız para döneminde kendiliğinden açılıp ödül ödemiş
 // olabilir (birikim/eşya eşikleri). Gerçek ekonomiyle birlikte onlar da sıfırlanır.
 const ACH_KEY = '@gamemoney/achievements_v2';
 const CLAIMED_KEY = '@gamemoney/achievements_claimed_v2';
+const STATS_KEY = '@gamemoney/achievement_stats_v1';
+
+type Stats = Record<AchStat, number>;
+const EMPTY_STATS: Stats = { make4: 0, make5: 0, hit5: 0, hit10: 0, earned: 0 };
+/** Sayaçlı başarımlar (defs'teki `goal`) */
+const GOALS = ACHIEVEMENTS.filter((a) => a.goal);
 
 interface AchApi {
   /** Açılmış başarım id'leri */
@@ -32,6 +35,10 @@ interface AchApi {
   reportCombo: (mult: number, streak: number) => void;
   /** Devam eden oyunda birikmiş kazanç */
   reportGameEarned: (tl: number) => void;
+  /** Bir hamlenin birleşmeleri: oluşan seviyeler, ham combo serisi, kazanılan TL (sayaçlar) */
+  reportMerge: (levels: number[], combo: number, gainedTL: number) => void;
+  /** Sayaçlı başarımın ilerlemesi (yoksa null) */
+  progressOf: (id: string) => { cur: number; n: number } | null;
   /** Tüm başarımları kilitler ve kaydı siler (ilerleme sıfırlamada kullanılır) */
   resetAchievements: () => void;
 }
@@ -43,8 +50,6 @@ const Ctx = createContext<AchApi | null>(null);
  * Her para türünün ilk taşı ve türün tepe taşı burada temsil edilir.
  */
 const MILESTONES: { level: number; id: string }[] = [
-  { level: 4, id: 'madeni' }, // 1 TL — madeni paranın sonu
-  { level: 5, id: 'banknot' }, // 10 TL — kağıt para başlıyor
   { level: 8, id: 'dolar' }, // 100 Dolar
   { level: 9, id: 'altin' }, // 1 Gr Altın — altın başlıyor
   { level: 11, id: 'tamaltin' }, // Tam Altın
@@ -65,7 +70,6 @@ const MILESTONES: { level: number; id: string }[] = [
  * Kripto yalnız iki seviyeden oluşur, bu yüzden eşiği ikidir.
  */
 const KIND_SETS: { kind: TileKind; need: number; id: string }[] = [
-  { kind: 'coin', need: 4, id: 'kumbara' },
   { kind: 'note', need: 4, id: 'deste' },
   { kind: 'gold', need: 4, id: 'altinseti' },
   { kind: 'gem', need: 5, id: 'mucevherseti' },
@@ -89,13 +93,23 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
   const [claimed, setClaimed] = useState<string[]>([]);
   const claimedRef = useRef<string[]>([]);
   const [toast, setToast] = useState<AchievementDef | null>(null);
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  const statsRef = useRef<Stats>(EMPTY_STATS);
+  const statsSave = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<AchievementDef[]>([]);
+  const showing = useRef(false);
   const { wallet, owned, addEarnings } = useEconomy();
 
   useEffect(() => {
     const valid = (raw: string | null) =>
       raw ? (JSON.parse(raw) as string[]).filter((id) => ACHIEVEMENTS.some((a) => a.id === id)) : [];
-    Promise.all([AsyncStorage.getItem(ACH_KEY), AsyncStorage.getItem(CLAIMED_KEY)])
-      .then(([u, c]) => {
+    Promise.all([AsyncStorage.getItem(ACH_KEY), AsyncStorage.getItem(CLAIMED_KEY), AsyncStorage.getItem(STATS_KEY)])
+      .then(([u, c, st]) => {
+        if (st) {
+          const parsed = JSON.parse(st) as Partial<Stats>;
+          statsRef.current = { ...EMPTY_STATS, ...parsed };
+          setStats(statsRef.current);
+        }
         const ids = valid(u);
         // Yalnız açık olanlar alınmış sayılabilir
         const got = valid(c).filter((id) => ids.includes(id));
@@ -129,9 +143,24 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
     AsyncStorage.setItem(ACH_KEY, JSON.stringify(unlockedRef.current)).catch(() => {});
     const def = ACHIEVEMENTS.find((a) => a.id === id);
     if (def) {
-      playMerge('gold');
-      setToast(def);
-      setTimeout(() => setToast((cur) => (cur?.id === def.id ? null : cur)), 2800);
+      // Aynı anda birden fazla açılırsa kutlamalar sırayla gösterilir
+      if (showing.current) queue.current.push(def);
+      else {
+        showing.current = true;
+        playAchievement();
+        setToast(def);
+      }
+    }
+  }, []);
+
+  const nextToast = useCallback(() => {
+    const next = queue.current.shift();
+    if (next) {
+      playAchievement();
+      setToast(next);
+    } else {
+      showing.current = false;
+      setToast(null);
     }
   }, []);
 
@@ -179,21 +208,46 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       if (kulceCount >= 2) unlock('ciftekulce');
       if (goldCount >= 4) unlock('altincag');
       if (gemCount >= 3) unlock('mucevherkutusu');
-      // BİLİNEN HATA: tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 (=8) farklı
-      // seviye durabildiği için bu eşik (12) hiç karşılanamaz — numizmat ölü
-      // rozet. Eşik 8'e çekilmeli ya da başarım yeniden tanımlanmalı.
-      if (distinct.size >= KULCE_LEVEL) unlock('numizmat');
+      // Tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 (=8) farklı seviye durabilir
+      if (distinct.size >= SPAWN_FLOOR_GAP + 1) unlock('numizmat');
     },
     [unlock]
   );
 
   const reportCombo = useCallback(
-    (mult: number, streak: number) => {
-      if (mult >= 5) unlock('zincir');
-      if (mult >= 10) unlock('efsane');
+    (_mult: number, streak: number) => {
       if (streak >= 15) unlock('serimanyagi');
     },
     [unlock]
+  );
+
+  const reportMerge = useCallback(
+    (levels: number[], combo: number, gainedTL: number) => {
+      const s = { ...statsRef.current };
+      for (const lv of levels) {
+        if (lv === 4) s.make4++;
+        if (lv === 5) s.make5++;
+      }
+      // Seri ×5'e / ×10'a ilk ulaştığı hamle sayılır (üstünde kalmak saymaz)
+      if (combo === 5) s.hit5++;
+      if (combo === 10) s.hit10++;
+      s.earned += gainedTL;
+      statsRef.current = s;
+      setStats(s);
+      // Her hamlede diske yazılmaz; kısa aralıkla toplanır
+      if (statsSave.current) clearTimeout(statsSave.current);
+      statsSave.current = setTimeout(() => AsyncStorage.setItem(STATS_KEY, JSON.stringify(statsRef.current)).catch(() => {}), 800);
+      for (const g of GOALS) if (s[g.goal!.stat] >= g.goal!.n) unlock(g.id);
+    },
+    [unlock]
+  );
+
+  const progressOf = useCallback(
+    (id: string) => {
+      const g = GOALS.find((a) => a.id === id)?.goal;
+      return g ? { cur: Math.min(stats[g.stat], g.n), n: g.n } : null;
+    },
+    [stats]
   );
 
   const reportGameEarned = useCallback(
@@ -210,33 +264,20 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
     setUnlocked([]);
     setClaimed([]);
     setToast(null);
-    AsyncStorage.multiRemove([ACH_KEY, CLAIMED_KEY]).catch(() => {});
+    queue.current = [];
+    showing.current = false;
+    statsRef.current = EMPTY_STATS;
+    setStats(EMPTY_STATS);
+    AsyncStorage.multiRemove([ACH_KEY, CLAIMED_KEY, STATS_KEY]).catch(() => {});
   }, []);
 
   const claimable = unlocked.filter((id) => !claimed.includes(id)).length;
 
   return (
-    <Ctx.Provider value={{ unlocked, claimed, claimable, claim, reportBoard, reportCombo, reportGameEarned, resetAchievements }}>
+    <Ctx.Provider value={{ unlocked, claimed, claimable, claim, reportBoard, reportCombo, reportGameEarned, reportMerge, progressOf, resetAchievements }}>
       <View style={styles.fill}>
         {children}
-        {toast ? (
-          <Animated.View
-            key={toast.id}
-            entering={FadeInUp.duration(260)}
-            exiting={FadeOutUp.duration(220)}
-            style={styles.toast}
-            pointerEvents="none"
-          >
-            <View style={styles.toastBadge}>
-              <BadgeSvg id={toast.id} tier={toast.tier} locked={false} size={40} />
-            </View>
-            <View style={styles.toastText}>
-              <Text style={styles.toastTitle}>Başarım açıldı!</Text>
-              <Text style={styles.toastName}>{toast.title}</Text>
-              <Text style={styles.toastReward}>Ödül: {formatTL(rewardOf(toast))} · Başarımlar’dan al</Text>
-            </View>
-          </Animated.View>
-        ) : null}
+        {toast ? <AchievementCelebration key={toast.id} def={toast} onDone={nextToast} /> : null}
       </View>
     </Ctx.Provider>
   );
@@ -250,22 +291,4 @@ export function useAchievements(): AchApi {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  // Oyun paneli dili: lacivert, koyu kalın kontur, altta kalınlık (theme.panelStyle)
-  toast: {
-    ...panelStyle,
-    position: 'absolute',
-    top: 64,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    zIndex: 100,
-  },
-  toastBadge: { width: 40, height: 44 },
-  toastText: {},
-  toastTitle: { ...type.overline, color: colors.accent },
-  toastReward: { ...type.caption, color: colors.gold, marginTop: 1 },
-  toastName: { ...type.headline, color: colors.label },
 });

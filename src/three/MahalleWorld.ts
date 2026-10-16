@@ -29,7 +29,6 @@ const C = {
   dirt: '#B9783F',
   dirtDark: '#8E5A2E',
   water: '#38B6F7',
-  select: '#FFD43B',
   ok: '#4CD964',
   bad: '#FF3B30',
 };
@@ -229,7 +228,12 @@ export class MahalleWorld {
   private camDirty = true;
 
   // ---- seçim + taşıma ----
-  private selectRing: THREE.Mesh;
+  private confettiGeo: THREE.PlaneGeometry;
+  private confettiMats: THREE.MeshBasicMaterial[];
+  private dustMat: THREE.MeshBasicMaterial;
+  private dustGeo: THREE.BufferGeometry;
+  /** Gölge daireleri ayak izine göre paylaşılır */
+  private shadowGeos = new Map<number, THREE.BufferGeometry>();
   private selected: string | null = null;
   private grid: THREE.LineSegments | null = null;
   private highlight: THREE.Mesh;
@@ -257,12 +261,12 @@ export class MahalleWorld {
       this.cars.push({ node, s: i / carNames.length, speed: 1 + (i % 2) * 0.3 });
     }
 
-    this.selectRing = new THREE.Mesh(
-      new THREE.RingGeometry(0.42, 0.52, 48).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: C.select, transparent: true, opacity: 0.9, depthWrite: false })
-    );
-    this.selectRing.visible = false;
-    scene.add(this.selectRing);
+    // Efekt malzemeleri bir kez kurulur ve ilk karede derlenir (bkz. warmup):
+    // her inişte yeni malzeme yaratmak ilk seferde shader derletip takılıyordu
+    this.confettiGeo = new THREE.PlaneGeometry(0.09, 0.14);
+    this.confettiMats = CONFETTI_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+    this.dustMat = new THREE.MeshBasicMaterial({ color: '#E8DCC2', transparent: true, opacity: 0.6, depthWrite: false });
+    this.dustGeo = new THREE.RingGeometry(0.3, 0.55, 40).rotateX(-Math.PI / 2);
 
     this.highlight = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.highlightMat);
     this.highlight.visible = false;
@@ -481,7 +485,9 @@ export class MahalleWorld {
         model.userData.baseScale = model.scale.clone();
         node.add(model);
         const s = footOf(id);
-        const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.42 * s, 32).rotateX(-Math.PI / 2), this.shadowMat);
+        let sg = this.shadowGeos.get(s);
+        if (!sg) this.shadowGeos.set(s, (sg = new THREE.CircleGeometry(0.42 * s, 32).rotateX(-Math.PI / 2)));
+        const shadow = new THREE.Mesh(sg, this.shadowMat);
         shadow.position.y = 0.006;
         shadow.renderOrder = -1;
         node.add(shadow);
@@ -637,10 +643,21 @@ export class MahalleWorld {
     return (hit?.object.userData.item as string | undefined) ?? null;
   }
 
+  /** Seçili eşya (bilgi kartı için); sahnede işaret çizilmez */
   select(id: string | null) {
     this.selected = id;
-    this.selectRing.visible = !!id;
-    if (id) this.selectRing.scale.setScalar(footOf(id));
+  }
+
+  /**
+   * İlk karede derlenecek efekt nesneleri: sahnede henüz olmayan ama sonra
+   * eklenecek malzemeler (konfeti, toz) shader derlemesi için burada verilir.
+   */
+  warmup(): THREE.Object3D {
+    const g = new THREE.Group();
+    for (const m of this.confettiMats) g.add(new THREE.Mesh(this.confettiGeo, m));
+    g.add(new THREE.Mesh(this.dustGeo, this.dustMat));
+    g.add(new THREE.Mesh(this.dustGeo, this.highlightMat));
+    return g;
   }
 
   beginEdit(id: string): boolean {
@@ -808,9 +825,9 @@ export class MahalleWorld {
     });
   }
 
+  /** Toz halkası: dışa büyürken incelip kaybolur (ortak malzeme; saydamlık yerine ölçek) */
   private dust(at: THREE.Vector3, s: number) {
-    const mat = new THREE.MeshBasicMaterial({ color: '#E8DCC2', transparent: true, opacity: 0.7, depthWrite: false });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.55, 40).rotateX(-Math.PI / 2), mat);
+    const ring = new THREE.Mesh(this.dustGeo, this.dustMat);
     ring.position.set(at.x, GROUND_Y + 0.02, at.z);
     this.scene.add(ring);
     let t = 0;
@@ -819,22 +836,20 @@ export class MahalleWorld {
       const p = t / 0.6;
       if (p >= 1) {
         this.scene.remove(ring);
-        ring.geometry.dispose();
-        mat.dispose();
         return false;
       }
-      ring.scale.setScalar(s * (0.8 + easeOutCubic(p) * 1.6));
-      mat.opacity = 0.7 * (1 - p);
+      const k = s * (0.8 + easeOutCubic(p) * 1.6);
+      ring.scale.set(k, 1, k);
+      ring.position.y = GROUND_Y + 0.02 - p * 0.03;
+      ring.visible = p < 0.92;
       return true;
     });
   }
 
   private confetti(at: THREE.Vector3, count = 28) {
-    const geo = new THREE.PlaneGeometry(0.09, 0.14);
     const parts: { m: THREE.Mesh; v: THREE.Vector3; spin: THREE.Vector3 }[] = [];
-    const mats = CONFETTI_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide, transparent: true }));
     for (let i = 0; i < count; i++) {
-      const m = new THREE.Mesh(geo, mats[i % mats.length]);
+      const m = new THREE.Mesh(this.confettiGeo, this.confettiMats[i % this.confettiMats.length]);
       m.position.copy(at);
       const a = Math.random() * Math.PI * 2;
       const sp = 1.2 + Math.random() * 1.8;
@@ -853,6 +868,8 @@ export class MahalleWorld {
         p.v.y -= 7 * dt;
         p.v.multiplyScalar(1 - 1.2 * dt);
         p.m.position.addScaledVector(p.v, dt);
+        // Sonda solmak yerine küçülerek kaybolur (malzeme ortak)
+        p.m.scale.setScalar(fade);
         if (p.m.position.y < GROUND_Y + 0.02) {
           p.m.position.y = GROUND_Y + 0.02;
           p.v.set(0, 0, 0);
@@ -862,11 +879,8 @@ export class MahalleWorld {
           p.m.rotation.z += p.spin.z * dt;
         }
       }
-      for (const m of mats) m.opacity = fade;
       if (t < 1.5) return true;
       for (const p of parts) this.scene.remove(p.m);
-      geo.dispose();
-      for (const m of mats) m.dispose();
       return false;
     });
   }
@@ -965,15 +979,6 @@ export class MahalleWorld {
     }
 
     if (this.anims.length) this.anims = this.anims.filter((a) => a(dt));
-
-    if (this.selected) {
-      const node = this.items.get(this.selected);
-      if (node) {
-        this.selectRing.position.set(node.position.x, GROUND_Y + 0.01, node.position.z);
-        this.selectRing.scale.setScalar(footOf(this.selected) * (1 + Math.sin(this.time * 5) * 0.05));
-        active = true;
-      }
-    }
 
     this.floatClouds();
 

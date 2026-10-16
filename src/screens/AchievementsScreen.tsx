@@ -14,13 +14,36 @@ interface Props {
   onBack: () => void;
 }
 
-function BadgeCard({ def, unlocked, claimed, onClaim }: { def: AchievementDef; unlocked: boolean; claimed: boolean; onClaim: () => void }) {
+function BadgeCard({
+  def,
+  unlocked,
+  claimed,
+  progress,
+  onClaim,
+}: {
+  def: AchievementDef;
+  unlocked: boolean;
+  claimed: boolean;
+  /** Sayaçlı rozette ilerleme (kilitliyken gösterilir) */
+  progress: { cur: number; n: number } | null;
+  onClaim: () => void;
+}) {
   const reward = formatTL(rewardOf(def));
   return (
     <View style={[styles.card, !unlocked && styles.cardLocked]}>
       <BadgeSvg id={def.id} tier={def.tier} locked={!unlocked} size={84} />
       <Text style={[styles.name, !unlocked && styles.nameLocked]}>{def.title}</Text>
       <Text style={styles.desc}>{def.desc}</Text>
+      {progress && !unlocked ? (
+        <View style={styles.progress}>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${Math.max(4, (progress.cur / progress.n) * 100)}%` }]} />
+          </View>
+          <Text style={styles.progressText}>
+            {def.goal?.stat === 'earned' ? `${formatTL(Math.floor(progress.cur))} / ${formatTL(progress.n)}` : `${progress.cur} / ${progress.n}`}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.rewardRow}>
         <Text style={[styles.reward, !unlocked && styles.rewardLocked, claimed && styles.rewardClaimed]} numberOfLines={1} adjustsFontSizeToFit>
           {reward}
@@ -36,7 +59,7 @@ function BadgeCard({ def, unlocked, claimed, onClaim }: { def: AchievementDef; u
 }
 
 export default function AchievementsScreen({ onBack }: Props) {
-  const { unlocked, claimed, claimable, claim } = useAchievements();
+  const { unlocked, claimed, claimable, claim, progressOf } = useAchievements();
 
   const handleClaim = (id: string) => {
     if (claim(id)) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -60,7 +83,14 @@ export default function AchievementsScreen({ onBack }: Props) {
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         <View style={styles.grid}>
           {ACHIEVEMENTS.map((a) => (
-            <BadgeCard key={a.id} def={a} unlocked={unlocked.includes(a.id)} claimed={claimed.includes(a.id)} onClaim={() => handleClaim(a.id)} />
+            <BadgeCard
+              key={a.id}
+              def={a}
+              unlocked={unlocked.includes(a.id)}
+              claimed={claimed.includes(a.id)}
+              progress={progressOf(a.id)}
+              onClaim={() => handleClaim(a.id)}
+            />
           ))}
         </View>
 
@@ -100,6 +130,10 @@ const styles = StyleSheet.create({
   name: { ...type.headline, color: colors.label, marginTop: space.s, textAlign: 'center' },
   nameLocked: { color: colors.secondaryLabel },
   desc: { ...type.caption, color: colors.secondaryLabel, textAlign: 'center', marginTop: 2, lineHeight: 16 },
+  progress: { alignSelf: 'stretch', marginTop: space.s, gap: 2, alignItems: 'center' },
+  track: { alignSelf: 'stretch', height: 12, borderRadius: 6, backgroundColor: colors.outline, padding: 2 },
+  fill: { height: '100%', borderRadius: 4, backgroundColor: '#43B52A' },
+  progressText: { ...type.caption, ...numeric, color: colors.label },
   rewardRow: { marginTop: space.m, alignItems: 'center', gap: space.s, alignSelf: 'stretch' },
   reward: { ...type.title3, ...numeric, color: colors.gold },
   rewardLocked: { color: colors.tertiaryLabel },

@@ -17,6 +17,7 @@ const SOUND_MODULES = [
   require('../assets/sounds/epic.wav'),
   require('../assets/sounds/combo.wav'),
   require('../assets/sounds/combo-big.wav'),
+  require('../assets/sounds/achievement.wav'),
 ];
 
 /**

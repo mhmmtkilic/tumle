@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Combo patlaması görselleri: oyun fontuyla kalın lacivert konturlu, alttan
+ * Combo patlaması ve başarım kutlaması görselleri: oyun fontuyla kalın lacivert konturlu, alttan
  * kabartmalı yazılar ve efekt parçaları PNG olarak assets/combo/ altına yazılır;
  * modül listesi src/components/comboImages.ts'e üretilir.
  *
@@ -19,17 +19,22 @@ const MODULES = path.join(ROOT, 'src/components/comboImages.ts');
 const font = globSync(path.join(ROOT, 'node_modules/@expo-google-fonts/baloo-2/**/Baloo2_800ExtraBold.ttf'))[0];
 const OUTLINE = '#1B2238';
 
-/** Çarpan rengi: seri büyüdükçe ısınır (mavi → yeşil → turuncu → mor) */
-export const tierColor = (m) => (m >= 10 ? '#B05CFF' : m >= 8 ? '#FF9A3D' : m >= 6 ? '#5BD43A' : '#3FB2F5');
+/** Çarpan rengi: seri büyüdükçe ısınır (mavi → yeşil → turuncu → mor → kırmızı → altın); ComboBurst ile aynı */
+export const tierColor = (m) =>
+  m >= 20 ? '#FFC531' : m >= 15 ? '#FF4A6E' : m >= 10 ? '#B05CFF' : m >= 8 ? '#FF9A3D' : m >= 6 ? '#5BD43A' : '#3FB2F5';
 
 // Yazılar 3x çizilir (ekranda ~1/3 boyutta gösterilir)
 const word = (id, text, size, color) => ({ id, html: `<span class="w" style="font-size:${size}px;color:${color}">${text}</span>` });
 const items = [
   word('combo', 'COMBO!', 120, '#FFFFFF'),
-  ...Array.from({ length: 8 }, (_, i) => word(`x${i + 3}`, `x${i + 3}`, 330, tierColor(i + 3))),
+  ...Array.from({ length: 18 }, (_, i) => word(`x${i + 3}`, `x${i + 3}`, 330, tierColor(i + 3))),
   word('super', 'SÜPER!', 110, '#FFFFFF'),
   word('cilginca', 'ÇILGINCA!', 110, '#FFFFFF'),
   word('efsane', 'EFSANE!', 110, '#FFFFFF'),
+  word('durdurulamaz', 'DURDURULAMAZ!', 100, '#FFFFFF'),
+  word('imkansiz', 'İMKANSIZ!', 110, '#FFD43B'),
+  // Başarım kutlaması etiketi
+  word('basarim', 'BAŞARIM AÇILDI!', 96, '#FFD43B'),
   // Işın patlaması: beyaz (oyunda kademe rengiyle boyanır), merkezden dışa solar
   {
     id: 'rays',

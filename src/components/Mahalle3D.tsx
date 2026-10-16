@@ -6,6 +6,7 @@ import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import * as Haptics from 'expo-haptics';
 import { CityLayout, CityPos } from '../city/grid';
 import { loadModels, makeRenderer, present } from '../three/gl';
+import * as THREE from 'three';
 import { MahalleWorld, WorldView } from '../three/MahalleWorld';
 
 /*
@@ -189,6 +190,10 @@ const Mahalle3D = forwardRef<Mahalle3DHandle, Props>(function Mahalle3D(props, r
       // İlk kare: shader'lar derlenir, modeller GPU'ya yüklenir; örtü sonra kalkar
       world.update(0);
       renderer.compile(world.scene, world.camera);
+      // Sonradan eklenecek efektlerin (konfeti, toz, taşıma) shader'ları da şimdi derlenir
+      const warm = new THREE.Scene();
+      warm.add(world.warmup());
+      renderer.compile(warm, world.camera);
       renderer.render(world.scene, world.camera);
       present(gl);
       setReady(true);

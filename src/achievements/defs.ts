@@ -13,11 +13,27 @@ export interface AchievementDef {
    * bir türe ait değildir. Listedeki sıra kademe içinde bu türü izler.
    */
   kind?: TileKind;
+  /**
+   * Sayaçlı başarım: oyunlar boyunca biriken bir istatistik bu sayıya ulaşınca
+   * açılır (Başarımlar ekranında ilerleme çubuğu gösterilir).
+   */
+  goal?: { stat: AchStat; n: number };
 }
 
 /**
+ * Oyunlar boyunca biriken istatistikler (AchievementsContext saklar).
+ *  make4 / make5: oluşturulan 1 TL / 10 TL taşı sayısı
+ *  hit5 / hit10: combo'nun ×5 / ×10'a ulaştığı sayı
+ *  earned: oyunlarda kazanılan toplam TL
+ */
+export type AchStat = 'make4' | 'make5' | 'hit5' | 'hit10' | 'earned';
+
+/**
  * Başarımlar: 7 normal + 8 zor + 7 elit + 12 efsanevi = 34.
- * Bilerek kolay başarım yok.
+ * Bilerek kolay başarım yok: ilk oyunda kendiliğinden açılanlar (1 TL, 10 TL,
+ * ×5 / ×10 combo, madeni para seti) sayaçlı yapıldı. Eşikler simülasyonla
+ * seçildi (scratch bot: oyun başına ~25 adet 1 TL, ~12 adet 10 TL, ~12 kez ×5,
+ * ~1,5 kez ×10, ~3.000 TL); normal rozet ~4-5 oyun, EFSANE ~15 oyun sürer.
  *
  * Kurgu iki eksende ilerler:
  *  1. Zincirin her para türü (coin → note → gold → gem → crypto → epic) hem
@@ -36,23 +52,26 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'madeni',
     title: 'Cebinde Bozukluk',
-    desc: 'İlk 1 TL taşını oluştur.',
+    desc: 'Toplam 100 adet 1 TL taşı oluştur.',
     tier: 'normal',
     kind: 'coin',
+    goal: { stat: 'make4', n: 100 },
   },
   {
     id: 'kumbara',
     title: 'Kumbara Tamam',
-    desc: 'Dört madeni parayı (1 kr, 10 kr, 50 kr, 1 TL) aynı anda tahtada bulundur.',
+    desc: 'Oyunlarda toplam 15.000 TL kazan.',
     tier: 'normal',
     kind: 'coin',
+    goal: { stat: 'earned', n: 15_000 },
   },
   {
     id: 'banknot',
     title: 'Kağıda Terfi',
-    desc: 'İlk 10 TL banknotunu oluştur.',
+    desc: 'Toplam 60 adet 10 TL banknotu oluştur.',
     tier: 'normal',
     kind: 'note',
+    goal: { stat: 'make5', n: 60 },
   },
   {
     id: 'dolar',
@@ -71,8 +90,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'zincir',
     title: 'Zincir Reaksiyon',
-    desc: 'Combo çarpanını ×5 seviyesine çıkar.',
+    desc: 'Combo çarpanını toplam 50 kez ×5’e çıkar.',
     tier: 'normal',
+    goal: { stat: 'hit5', n: 50 },
   },
   {
     id: 'anahtar',
@@ -105,8 +125,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'efsane',
     title: 'EFSANE',
-    desc: 'Combo çarpanını ×10 tavana dayandır.',
+    desc: 'Combo çarpanını toplam 20 kez ×10’a çıkar.',
     tier: 'zor',
+    goal: { stat: 'hit10', n: 20 },
   },
   {
     id: 'milyoner',
@@ -157,7 +178,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'numizmat',
     title: 'Nümizmat',
-    desc: '12 para türünün hepsini aynı anda tahtada topla.',
+    desc: 'Sekiz farklı para taşını aynı anda tahtada topla.',
     tier: 'elit',
   },
   {
@@ -267,10 +288,12 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 
 /** Başarım ödülü (TL), kademeye göre: rozet ne kadar zorsa ödül o kadar büyük */
 export const REWARD_BY_TIER: Record<AchTier, number> = {
-  normal: 25_000,
-  zor: 250_000,
-  elit: 2_500_000,
-  efsanevi: 25_000_000,
+  // Oyun başına kazanç ilk oyunlarda birkaç bin TL: ödül tek başına mağazayı
+  // açmasın (eskiden 25.000 TL'lik normal rozetler ilk oyunda açılıyordu)
+  normal: 10_000,
+  zor: 100_000,
+  elit: 1_000_000,
+  efsanevi: 10_000_000,
 };
 
 export function rewardOf(def: AchievementDef): number {

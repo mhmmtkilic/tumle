@@ -19,7 +19,8 @@ import { GAME_FONT } from '../ui/theme';
  *  - dev çarpan ekrana damga gibi iner (büyükten küçüğe çarpar, hafif sekmeli)
  *  - indiği an: beyaz şok halkası, tahta sarsıntısı, etrafa ₺ paralar saçılıp düşer
  *  - arkada kademe renginde dönen ışın patlaması
- *  - üstte COMBO! etiketi zıplar, altta kademe sözü (SÜPER / ÇILGINCA / EFSANE)
+ *  - üstte COMBO! etiketi zıplar, altta kademe sözü (SÜPER / ÇILGINCA / EFSANE /
+ *    DURDURULAMAZ / İMKANSIZ); seri x20'ye kadar yükselir
  *  - kazanç aşağıdan yukarı süzülür
  * Yazılar PNG (scripts/render-combo.mjs); tüm hareket UI iş parçacığında.
  * Bileşen her yeni combo'da yeniden kurulmaz: `combo` değişince baştan oynar.
@@ -29,16 +30,16 @@ import { GAME_FONT } from '../ui/theme';
 const PX = 1 / 3;
 /** Çarpanın yere çarptığı an (ms): halka, sarsıntı ve paralar burada başlar */
 const IMPACT = 210;
-const COINS = 12;
+export const COINS = 12;
 const OUTLINE = '#1B2238';
 
 /** Kademe rengi (render-combo.mjs ile aynı) */
 function tierColor(m: number) {
-  return m >= 10 ? '#B05CFF' : m >= 8 ? '#FF9A3D' : m >= 6 ? '#5BD43A' : '#3FB2F5';
+  return m >= 20 ? '#FFC531' : m >= 15 ? '#FF4A6E' : m >= 10 ? '#B05CFF' : m >= 8 ? '#FF9A3D' : m >= 6 ? '#5BD43A' : '#3FB2F5';
 }
 
 function tierWord(m: number): ComboImageId | null {
-  return m >= 10 ? 'efsane' : m >= 8 ? 'cilginca' : m >= 6 ? 'super' : null;
+  return m >= 20 ? 'imkansiz' : m >= 15 ? 'durdurulamaz' : m >= 10 ? 'efsane' : m >= 8 ? 'cilginca' : m >= 6 ? 'super' : null;
 }
 
 function size(id: ComboImageId, k = 1) {
@@ -48,8 +49,8 @@ function size(id: ComboImageId, k = 1) {
 
 const out = Easing.out(Easing.cubic);
 
-/** Saçılan tek para: açısı sırasından, uzaklığı ve dönüşü combo sayısından türetilir */
-function Coin({ index, seed, t }: { index: number; seed: number; t: SharedValue<number> }) {
+/** Saçılan tek para: açısı sırasından, uzaklığı ve dönüşü `seed`den türetilir (başarım kutlaması da kullanır) */
+export function Coin({ index, seed, t }: { index: number; seed: number; t: SharedValue<number> }) {
   const jitter = ((index * 37 + seed * 11) % 10) / 10;
   const a = (index / COINS) * Math.PI * 2 + jitter * 0.5;
   const r = 110 + jitter * 70;
@@ -107,7 +108,7 @@ export default function ComboBurst({ combo, gain, shake }: { combo: number; gain
     coins.value = withDelay(IMPACT, withTiming(1, { duration: 1150, easing: Easing.linear }));
     rise.value = withDelay(IMPACT + 150, withTiming(1, { duration: 1000, easing: out }));
     if (shake) {
-      const k = mult >= 8 ? 1.6 : mult >= 6 ? 1.25 : 1;
+      const k = mult >= 15 ? 2.1 : mult >= 8 ? 1.6 : mult >= 6 ? 1.25 : 1;
       shake.value = withDelay(
         IMPACT,
         withSequence(

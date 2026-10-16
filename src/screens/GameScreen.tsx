@@ -20,8 +20,8 @@ interface Props {
 export default function GameScreen({ onBack }: Props) {
   const { width } = useWindowDimensions();
   const { wallet, addEarnings } = useEconomy();
-  const game = useGame(addEarnings);
-  const { reportBoard, reportCombo, reportGameEarned } = useAchievements();
+  const { reportBoard, reportCombo, reportGameEarned, reportMerge } = useAchievements();
+  const game = useGame(addEarnings, GRID, reportMerge);
 
   // Başarım tetikleri: tahtadaki taşlar, combo çarpanı/serisi, oyun kazancı
   useEffect(() => {

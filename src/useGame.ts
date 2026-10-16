@@ -18,7 +18,7 @@ import { playCombo, playMerge, playMove } from './audio';
 /** Combo bu kadar ardışık birleşmeden SONRA başlar */
 export const COMBO_START = 3;
 /** Combo çarpanı üst sınırı */
-export const MAX_COMBO = 10;
+export const MAX_COMBO = 20;
 /**
  * Combolu hamlede ek bonus: tahtadaki en yüksek taşın değeri × bu oran × çarpan.
  * Küçük taşlarla yapılan combolar da oyuncunun servet ölçeğinde kazandırsın diye
@@ -104,7 +104,12 @@ export interface GameApi {
   keepPlayingFinal: () => void;
 }
 
-export function useGame(onEarn?: (tl: number) => void, gridSize: number = 4): GameApi {
+export function useGame(
+  onEarn?: (tl: number) => void,
+  gridSize: number = 4,
+  /** Her birleşmeli hamlede: oluşan seviyeler, ham combo serisi, kazanılan TL (başarım sayaçları) */
+  onMerge?: (levels: number[], combo: number, gainedTL: number) => void
+): GameApi {
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [earned, setEarned] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -220,6 +225,7 @@ export function useGame(onEarn?: (tl: number) => void, gridSize: number = 4): Ga
         newEarned = earned + gainedTL;
         setEarned(newEarned);
         onEarn?.(gainedTL);
+        onMerge?.(result.mergedLevels, newCombo, gainedTL);
       } else {
         newCombo = 0;
         setComboGain(0);
@@ -236,7 +242,7 @@ export function useGame(onEarn?: (tl: number) => void, gridSize: number = 4): Ga
 
       persistGame(snapshot(next, newEarned, newCombo, newOver, newWon, continued, newFinal, finalContinued));
     },
-    [tiles, over, won, continued, final, finalContinued, combo, earned, onEarn, gridSize, snapshot]
+    [tiles, over, won, continued, final, finalContinued, combo, earned, onEarn, onMerge, gridSize, snapshot]
   );
 
   const restart = useCallback(() => {
