@@ -40,18 +40,59 @@ export const MAX_LEVEL = 24;
 /** Külçe Altın: ilk büyük kilometre taşı (ara kutlama burada) */
 export const KULCE_LEVEL = 12;
 
-// Her seviyenin yaklaşık TL karşılığı (satirik kur; 13'ten sonra her seviye ikiye katlar)
-export const VALUES_TL = [
-  0, 0.01, 0.1, 0.5, 1, 10, 50, 200, 4100, 4500, 8000, 32000, 500000,
-  1_000_000, 2_000_000, 4_000_000, 8_000_000, 16_000_000, 32_000_000,
-  64_000_000, 128_000_000, 256_000_000, 512_000_000, 1_000_000_000, 2_000_000_000,
-];
+/**
+ * Birleşme ödemesi (TL): seviye N'yi oluşturan birleşme cüzdana PAYOUT_TL[N] ekler
+ * (combo çarpanı ve bonusu ayrıca). Taşın adındaki değer değildir, yalnız oyun
+ * ekonomisidir; ekranda hiçbir yerde taşın "kuru" olarak gösterilmez.
+ *
+ * 1–7: her seviye ×2 (klasik 2048). 8+: her seviye yalnız ×1,2. Taban
+ * yükseldikçe tüm birleşmeler üst seviyelerde olur; eğri burada dik kalırsa
+ * kazanç her seviyede katlanır ve iyi oyuncu tek oyunda ekonomiyi bitirir
+ * (eski tablo: usta bot oyun başına ₺200-500 milyar, mağazanın tamamı ₺16 milyar).
+ * Bu eğriyle oyun başına ortalama: zayıf ~₺125 bin, orta ~₺550 bin, usta ~₺1,9 Mn.
+ * Değiştirirsen `npm run economy` ile mağaza temposunu yeniden doğrula.
+ */
+export const PAYOUT_TL: number[] = [0];
+for (let lv = 1; lv <= 24; lv++) {
+  PAYOUT_TL.push(Math.round(10 * (lv <= 7 ? 2 ** (lv - 1) : 64 * 1.2 ** (lv - 7))));
+}
 
 export function formatTL(v: number): string {
   if (v < 1) return `${Math.round(v * 100)} kr`;
   const [int, frac] = v.toFixed(2).split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return frac === '00' ? `₺${grouped}` : `₺${grouped},${frac}`;
+}
+
+/**
+ * Kısa tutar: ₺35 Bin / ₺2,4 Mn / ₺1,25 Mr / ₺3 Tn. Hep AŞAĞI yuvarlar: ekranda
+ * görünen para, gerçekte olandan fazla olamaz (yoksa "₺2,1 Mn" yazıp ₺2,1 Mn'lik
+ * eşyayı aldırmıyordu).
+ */
+export function formatShort(v: number): string {
+  const units: [number, string][] = [
+    [1e12, 'Tn'],
+    [1e9, 'Mr'],
+    [1e6, 'Mn'],
+    [1e3, 'Bin'],
+  ];
+  for (const [n, u] of units) {
+    if (v >= n) {
+      const x = v / n;
+      const digits = x >= 100 ? 0 : x >= 10 ? 1 : 2;
+      const k = 10 ** digits;
+      // +1e-6: 1,15 gibi değerler ikilikte 1,1499… tutulur, taban almada bir alta düşmesin
+      const fixed = (Math.floor(x * k + 1e-6) / k).toFixed(digits);
+      const s = (digits > 0 ? fixed.replace(/\.?0+$/, '') : fixed).replace('.', ',');
+      return `₺${s} ${u}`;
+    }
+  }
+  return `₺${Math.floor(v)}`;
+}
+
+/** Ekran tutarı: milyonun altında tam (₺350.000), üstünde kısa (₺2,4 Mn); kuruş gösterilmez */
+export function formatMoney(v: number): string {
+  return v >= 1_000_000 ? formatShort(v) : formatTL(Math.floor(v));
 }
 
 export function levelKind(level: number): TileKind {

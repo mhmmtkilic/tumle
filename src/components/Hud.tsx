@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import ChunkyButton from '../ui/game/ChunkyButton';
 import GameStats from '../ui/game/GameStats';
 import { ChevronLeftIcon, RestartIcon } from './icons';
-import { formatTL } from '../game/levels';
+import { formatMoney } from '../game/levels';
 import { space } from '../ui/theme';
 
 interface Props {
@@ -25,9 +25,12 @@ function Hud({ earned, total, onRestart, onBack }: Props) {
       ) : null}
       <GameStats
         style={styles.stats}
+        // Tutarlar kısa yazılır ve hep sığar; her hamlede yazıyı sığdırmak için
+        // yeniden ölçmek (adjustsFontSizeToFit) özellikle Android'de pahalıydı
+        fit={false}
         items={[
-          { label: 'Bu oyun', value: formatTL(earned) },
-          { label: 'Birikim', value: formatTL(total) },
+          { label: 'Bu oyun', value: formatMoney(earned) },
+          { label: 'Birikim', value: formatMoney(total) },
         ]}
       />
       <ChunkyButton label="Yeniden başla" square size="small" skin="yellow" onPress={onRestart} icon={RESTART_ICON} />

@@ -2,52 +2,76 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import ChunkyButton from '../ui/game/ChunkyButton';
-import { formatTL } from '../game/levels';
-import { colors, numeric, panelStyle, space, type } from '../ui/theme';
+import CoinIcon from '../ui/game/CoinIcon';
+import GameDialog from '../ui/game/GameDialog';
+import OutlineText from '../ui/game/OutlineText';
+import { CrownIcon, HammerIcon, TrophyIcon, UndoIcon } from './icons';
+import { formatMoney } from '../game/levels';
+import { colors, space, type } from '../ui/theme';
 
 interface Props {
   mode: 'over' | 'won' | 'final';
   earned: number;
   onRestart: () => void;
   onContinue?: () => void;
+  /** Tıkanınca kurtarma: kalan araç hakları (0 ise buton gösterilmez) */
+  undoLeft?: number;
+  hammerLeft?: number;
+  onUndo?: () => void;
+  onHammer?: () => void;
 }
 
 const CONTENT = {
   over: {
-    emoji: '💸',
+    art: <CoinIcon size={76} />,
+    tone: 'red',
     title: 'Cüzdan Tıkandı',
     msg: 'Hamle kalmadı, ekonomi kilitlendi. Enflasyona yenildin ama skorun cebinde.',
   },
   won: {
-    emoji: '🏆',
+    art: <TrophyIcon size={76} />,
+    tone: 'green',
     title: 'Külçeye Ulaştın',
     msg: 'Kuruştan başladın, külçeyi kaptın. Merkez bankası seni arayabilir. Ama zincir burada bitmiyor…',
   },
   final: {
-    emoji: '🌍',
+    art: <CrownIcon size={80} />,
+    tone: 'green',
     title: 'Dünya Serveti Sende',
     msg: 'Bir kuruştan dünyanın servetine. Ekonomi kitapları artık seni yazacak.',
   },
-} as const;
+} as const satisfies Record<string, { art: React.ReactNode; tone: 'red' | 'green'; title: string; msg: string }>;
 
-export default function Overlay({ mode, earned, onRestart, onContinue }: Props) {
+export default function Overlay({ mode, earned, onRestart, onContinue, undoLeft = 0, hammerLeft = 0, onUndo, onHammer }: Props) {
   const c = CONTENT[mode];
   const canContinue = mode !== 'over' && !!onContinue;
+  const rescue = mode === 'over' && ((undoLeft > 0 && !!onUndo) || (hammerLeft > 0 && !!onHammer));
   return (
     <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
-      <View style={styles.card}>
-        <Text style={styles.emoji}>{c.emoji}</Text>
-        <Text style={styles.title}>{c.title}</Text>
+      <GameDialog title={c.title} tone={c.tone} style={styles.card}>
+        <View style={styles.art}>{c.art}</View>
         <Text style={styles.msg}>{c.msg}</Text>
-        <Text style={styles.scoreLabel}>Kazanç</Text>
-        <Text style={styles.score} numberOfLines={1} adjustsFontSizeToFit>
-          {formatTL(earned)}
-        </Text>
-        <View style={styles.buttons}>
-          {canContinue ? <ChunkyButton label="Devam Et" size="large" skin="green" onPress={onContinue} /> : null}
-          <ChunkyButton label="Yeniden Başla" size={canContinue ? 'medium' : 'large'} skin={canContinue ? 'blue' : 'yellow'} onPress={onRestart} />
+        <View style={styles.scoreBox}>
+          <Text style={styles.scoreLabel}>BU OYUNDA KAZANDIN</Text>
+          <OutlineText size={34} color="#FFD43B" strokeWidth={3}>
+            {formatMoney(earned)}
+          </OutlineText>
         </View>
-      </View>
+        <View style={styles.buttons}>
+          {rescue ? (
+            <View style={styles.rescue}>
+              {undoLeft > 0 && onUndo ? (
+                <ChunkyButton label={`Geri Al ×${undoLeft}`} skin="green" icon={<UndoIcon size={24} />} onPress={onUndo} style={styles.flex1} />
+              ) : null}
+              {hammerLeft > 0 && onHammer ? (
+                <ChunkyButton label={`Çekiç ×${hammerLeft}`} skin="blue" icon={<HammerIcon size={24} />} onPress={onHammer} style={styles.flex1} />
+              ) : null}
+            </View>
+          ) : null}
+          {canContinue ? <ChunkyButton label="Devam Et" size="large" skin="green" onPress={onContinue} /> : null}
+          <ChunkyButton label="Yeniden Başla" size={canContinue || rescue ? 'medium' : 'large'} skin={canContinue ? 'blue' : 'yellow'} onPress={onRestart} />
+        </View>
+      </GameDialog>
     </Animated.View>
   );
 }
@@ -64,11 +88,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
-  card: { ...panelStyle, padding: space.xl, paddingTop: space.xxl, alignItems: 'center', width: '88%', maxWidth: 360 },
-  emoji: { fontSize: 52, marginBottom: space.s },
-  title: { ...type.title1, color: colors.label, textAlign: 'center' },
-  msg: { ...type.subhead, color: colors.secondaryLabel, textAlign: 'center', marginTop: space.s, lineHeight: 20 },
-  scoreLabel: { ...type.overline, color: colors.secondaryLabel, marginTop: space.l },
-  score: { ...type.largeTitle, ...numeric, color: colors.gold },
+  card: { width: '90%' },
+  art: { marginTop: -4, marginBottom: space.s },
+  msg: { ...type.subhead, color: colors.secondaryLabel, textAlign: 'center', lineHeight: 20 },
+  scoreBox: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: space.l,
+    paddingVertical: space.s,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#0B1230',
+    backgroundColor: '#13265A',
+  },
+  scoreLabel: { ...type.overline, color: colors.secondaryLabel },
   buttons: { alignSelf: 'stretch', gap: space.m, marginTop: space.xl },
+  rescue: { flexDirection: 'row', gap: space.s },
+  flex1: { flex: 1 },
 });

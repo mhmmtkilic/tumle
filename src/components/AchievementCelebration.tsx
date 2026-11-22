@@ -11,10 +11,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import BadgeSvg from './BadgeSvg';
+import CoinIcon from '../ui/game/CoinIcon';
+import OutlineText from '../ui/game/OutlineText';
 import { Coin, COINS } from './ComboBurst';
 import { COMBO_IMAGES } from './comboImages';
 import { AchievementDef, AchTier, rewardOf } from '../achievements/defs';
-import { formatTL } from '../game/levels';
+import { formatShort } from '../game/levels';
 import { GAME_FONT } from '../ui/theme';
 
 /*
@@ -39,7 +41,7 @@ const RAY_COLOR: Record<AchTier, string> = {
 
 const PX = 1 / 3;
 
-export default function AchievementCelebration({ def, onDone }: { def: AchievementDef; onDone: () => void }) {
+export default function AchievementCelebration({ def, mult, onDone }: { def: AchievementDef; /** Oyuncunun kazanç çarpanı (ödül bununla ölçeklenir) */ mult: number; onDone: () => void }) {
   const { width } = useWindowDimensions();
   const badge = Math.min(width * 0.42, 170);
   const raysSize = Math.min(width * 1.5, 640);
@@ -54,6 +56,8 @@ export default function AchievementCelebration({ def, onDone }: { def: Achieveme
   const bob = useSharedValue(0);
 
   const tap = useSharedValue(0);
+  /** "Devam etmek için dokun" yazısının belirmesi (yeri baştan ayrılıdır) */
+  const tapIn = useSharedValue(0);
   const [canClose, setCanClose] = useState(false);
 
   const close = () => {
@@ -80,6 +84,7 @@ export default function AchievementCelebration({ def, onDone }: { def: Achieveme
     bob.value = withDelay(IMPACT + 400, withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true));
     const t = setTimeout(() => {
       setCanClose(true);
+      tapIn.value = withTiming(1, { duration: 220 });
       tap.value = withRepeat(withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }), -1, true);
     }, MIN_MS);
     return () => clearTimeout(t);
@@ -103,7 +108,7 @@ export default function AchievementCelebration({ def, onDone }: { def: Achieveme
     opacity: Math.min(info.value * 2, 1),
     transform: [{ translateY: (1 - info.value) * 20 }, { scale: 0.6 + info.value * 0.4 }],
   }));
-  const tapStyle = useAnimatedStyle(() => ({ opacity: 0.55 + tap.value * 0.45, transform: [{ scale: 1 + tap.value * 0.06 }] }));
+  const tapStyle = useAnimatedStyle(() => ({ opacity: tapIn.value * (0.55 + tap.value * 0.45), transform: [{ scale: 1 + tap.value * 0.06 }] }));
   const ringStyle = useAnimatedStyle(() => ({
     opacity: ring.value <= 0 ? 0 : 1 - ring.value,
     transform: [{ scale: 0.4 + ring.value * 3.2 }],
@@ -131,19 +136,22 @@ export default function AchievementCelebration({ def, onDone }: { def: Achieveme
           <BadgeSvg id={def.id} tier={def.tier} locked={false} size={badge} />
         </Animated.View>
         <Animated.View style={[styles.info, infoStyle]}>
-          <Text style={styles.title} numberOfLines={2}>
+          <OutlineText size={30} strokeWidth={3.5} depth={3}>
             {def.title}
-          </Text>
+          </OutlineText>
           <View style={styles.reward}>
-            <Text style={styles.rewardText}>+{formatTL(rewardOf(def))}</Text>
+            <CoinIcon size={34} />
+            <OutlineText size={26} strokeWidth={3} color="#FFD43B">
+              {`+${formatShort(rewardOf(def, mult))}`}
+            </OutlineText>
           </View>
           <Text style={styles.hint}>Ödülü Başarımlar’dan al</Text>
         </Animated.View>
-        {canClose ? (
-          <Animated.View style={[styles.tap, tapStyle]}>
-            <Text style={styles.tapText}>Devam etmek için dokun</Text>
-          </Animated.View>
-        ) : null}
+        {/* Hep çizilir, süre dolana kadar saydam: sonradan eklenince ortalanmış
+            sütun uzuyor, rozet ve yazılar yukarı zıplıyordu */}
+        <Animated.View style={[styles.tap, tapStyle]}>
+          <Text style={styles.tapText}>Devam etmek için dokun</Text>
+        </Animated.View>
       </View>
     </Animated.View>
   );
@@ -159,13 +167,17 @@ const styles = StyleSheet.create({
   info: { alignItems: 'center', gap: 8 },
   title: { fontFamily: GAME_FONT, fontSize: 30, color: '#FFFFFF', textAlign: 'center', ...textOutline },
   reward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#24406E',
-    borderWidth: 2.5,
-    borderBottomWidth: 5,
-    borderColor: OUTLINE,
+    backgroundImage: 'linear-gradient(#2F5BA8, #1D3B7A)',
+    boxShadow: `0 0 0 3px #E9A11A, 0 0 0 5.5px ${OUTLINE}, 0 6px 0 5.5px ${OUTLINE}`,
     borderRadius: 999,
-    paddingHorizontal: 18,
+    paddingLeft: 6,
+    paddingRight: 18,
     paddingVertical: 2,
+    marginVertical: 4,
   },
   rewardText: { fontFamily: GAME_FONT, fontSize: 26, color: '#FFD43B', ...textOutline, textShadowOffset: { width: 0, height: 2 } },
   tap: { marginTop: 28 },

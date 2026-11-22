@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   aliveTiles,
@@ -12,26 +12,15 @@ import {
   spawnRandom,
   Tile,
 } from './game/engine';
-import { KULCE_LEVEL, levelKind, MAX_LEVEL, VALUES_TL } from './game/levels';
-import { playCombo, playMerge, playMove } from './audio';
+import { KULCE_LEVEL, levelKind, MAX_LEVEL } from './game/levels';
+import { COMBO_START, comboMultiplier, moveEarnings } from './game/payout';
+import { playCombo, playMerge, playMove, playSmash, playUndo } from './audio';
+import type { Tool } from './economy/items';
 
-/** Combo bu kadar ardışık birleşmeden SONRA başlar */
-export const COMBO_START = 3;
-/** Combo çarpanı üst sınırı */
-export const MAX_COMBO = 20;
-/**
- * Combolu hamlede ek bonus: tahtadaki en yüksek taşın değeri × bu oran × çarpan.
- * Küçük taşlarla yapılan combolar da oyuncunun servet ölçeğinde kazandırsın diye
- * bonus, birleşen taşa değil tahtadaki en büyük taşa endekslidir (simülasyonla
- * kalibre edildi: toplam kazancın ~%40'ı bonustan gelir).
- */
-export const COMBO_BONUS_RATE = 0.02;
+export { COMBO_START, MAX_COMBO, comboMultiplier } from './game/payout';
 
-export function comboMultiplier(combo: number): number {
-  return combo >= COMBO_START ? Math.min(combo, MAX_COMBO) : 1;
-}
-
-const GAME_KEY = '@gamemoney/game_v1';
+// v3: gerçek fiyat ölçeği + kazanç çarpanı; eski kayıttaki oyun kazancı eski ölçekte
+const GAME_KEY = '@gamemoney/game_v3';
 
 interface SavedTile {
   id: number;
@@ -50,10 +39,57 @@ interface SavedGame {
   continued: boolean;
   final?: boolean;
   finalContinued?: boolean;
+  /** Bu oyunda harcanan araç hakları */
+  undoUsed?: number;
+  hammerUsed?: number;
 }
 
 function persistGame(snap: SavedGame) {
   AsyncStorage.setItem(GAME_KEY, JSON.stringify(snap)).catch(() => {});
+}
+
+interface GameState {
+  tiles: Tile[];
+  earned: number;
+  combo: number;
+  comboGain: number;
+  over: boolean;
+  won: boolean;
+  continued: boolean;
+  final: boolean;
+  finalContinued: boolean;
+  undoUsed: number;
+  hammerUsed: number;
+}
+
+const EMPTY: GameState = {
+  tiles: [],
+  earned: 0,
+  combo: 0,
+  comboGain: 0,
+  over: false,
+  won: false,
+  continued: false,
+  final: false,
+  finalContinued: false,
+  undoUsed: 0,
+  hammerUsed: 0,
+};
+
+function toSave(g: GameState, gridSize: number): SavedGame {
+  return {
+    gridSize,
+    tiles: aliveTiles(g.tiles).map(({ id, level, row, col }) => ({ id, level, row, col })),
+    earned: g.earned,
+    combo: g.combo,
+    over: g.over,
+    won: g.won,
+    continued: g.continued,
+    final: g.final,
+    finalContinued: g.finalContinued,
+    undoUsed: g.undoUsed,
+    hammerUsed: g.hammerUsed,
+  };
 }
 
 /** Kayıtlı oyunu siler; bir sonraki açılışta sıfırdan başlar (ilerleme sıfırlamada kullanılır) */
@@ -98,6 +134,15 @@ export interface GameApi {
   /** Dünya Serveti'ne (24) ulaşıldı — nihai zafer */
   final: boolean;
   finalContinued: boolean;
+  /** Bu oyunda kalan araç hakları (sahip olunan eşyalardan) */
+  undoLeft: number;
+  hammerLeft: number;
+  /** Geri alınacak bir hamle var mı (oyun başında ya da çekiçten sonra yok) */
+  canUndo: boolean;
+  /** Son hamleyi geri alır; kazancı da cüzdandan geri düşer. Oyun bitince de çalışır */
+  undo: () => void;
+  /** Bir taşı kırar (en az iki taş varken). Tıkanmış tahtayı açabilir */
+  smash: (tileId: number) => void;
   onSwipe: (dir: Direction) => void;
   restart: () => void;
   keepPlaying: () => void;
@@ -107,27 +152,49 @@ export interface GameApi {
 export function useGame(
   onEarn?: (tl: number) => void,
   gridSize: number = 4,
-  /** Her birleşmeli hamlede: oluşan seviyeler, ham combo serisi, kazanılan TL (başarım sayaçları) */
-  onMerge?: (levels: number[], combo: number, gainedTL: number) => void
+  /**
+   * Her birleşmeli hamlede: oluşan seviyeler, ham combo serisi, kazanılan TL
+   * (başarım sayaçları). `revert`: hamle Geri Al ile geri alındı, sayaçlardan düş.
+   */
+  onMerge?: (levels: number[], combo: number, gainedTL: number, revert?: boolean) => void,
+  /** Mahalle etkileri: kalıcı kazanç çarpanı ve oyun başına araç hakları */
+  mods: { mult: number; charges: Record<Tool, number> } = { mult: 1, charges: { undo: 0, hammer: 0 } }
 ): GameApi {
-  const [tiles, setTiles] = useState<Tile[]>([]);
-  const [earned, setEarned] = useState(0);
-  const [combo, setCombo] = useState(0);
-  const [comboGain, setComboGain] = useState(0);
-  const [over, setOver] = useState(false);
-  const [won, setWon] = useState(false);
-  const [continued, setContinued] = useState(false);
-  const [final, setFinal] = useState(false);
-  const [finalContinued, setFinalContinued] = useState(false);
+  /*
+   * Oyun durumunun TEK doğru kaynağı ref'tir; React durumu yalnız çizim içindir.
+   * Eskiden onSwipe durumu render kapanışından okuyordu: JS iş parçacığı meşgulken
+   * iki kaydırma aynı render'a düşünce ikisi de ESKİ tahtadan hesaplanıyor, bir
+   * hamle kayboluyor, kazanç ve başarım sayaçları iki kez yazılıyordu. Ref her
+   * hamlede eşzamanlı güncellendiği için art arda gelen kaydırmalar sıralı işlenir.
+   */
+  const ref = useRef<GameState>(EMPTY);
+  const [state, setState] = useState<GameState>(EMPTY);
+  /** Kayıt yüklenmeden oyuncu oyunu değiştirdiyse (ör. yeniden başla) yükleme onu ezmesin */
+  const touched = useRef(false);
+  /** Geri Al için son hamleden önceki durum, o hamlenin kazancı ve birleşmeleri (tek adım) */
+  const prev = useRef<{ state: GameState; gained: number; levels: number[]; combo: number } | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const modsRef = useRef(mods);
+  modsRef.current = mods;
+
+  const commit = useCallback(
+    (next: GameState, save = true) => {
+      ref.current = next;
+      setState(next);
+      if (save) persistGame(toSave(next, gridSize));
+    },
+    [gridSize]
+  );
 
   // Açılışta kayıtlı oyunu yükle; yoksa (veya ızgara boyutu uyuşmuyorsa) yeni oyun kur.
   // Yeni kurulan oyun diske YAZILMAZ — ayarlar geç yüklenirken eski kayıt ezilmesin.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let loaded: GameState | null = null;
       try {
         const raw = await AsyncStorage.getItem(GAME_KEY);
-        if (!cancelled && raw) {
+        if (raw) {
           const s = JSON.parse(raw) as SavedGame;
           if (isValidSave(s, gridSize)) {
             const restored: Tile[] = s.tiles.map((t) => ({
@@ -140,135 +207,136 @@ export function useGame(
               dying: false,
             }));
             ensureNextIdAbove(restored);
-            setTiles(restored);
-            setEarned(s.earned || 0);
-            setCombo(s.combo || 0);
-            setOver(!!s.over);
-            setWon(!!s.won);
-            setContinued(!!s.continued);
-            setFinal(!!s.final);
-            setFinalContinued(!!s.finalContinued);
-            return;
+            loaded = {
+              tiles: restored,
+              earned: s.earned || 0,
+              combo: s.combo || 0,
+              comboGain: 0,
+              over: !!s.over,
+              won: !!s.won,
+              continued: !!s.continued,
+              final: !!s.final,
+              finalContinued: !!s.finalContinued,
+              undoUsed: Number.isInteger(s.undoUsed) ? s.undoUsed! : 0,
+              hammerUsed: Number.isInteger(s.hammerUsed) ? s.hammerUsed! : 0,
+            };
           }
         }
       } catch {}
-      if (!cancelled) {
-        setTiles(newGame(gridSize));
-        setEarned(0);
-        setCombo(0);
-        setOver(false);
-        setWon(false);
-        setContinued(false);
-        setFinal(false);
-        setFinalContinued(false);
-      }
+      if (cancelled || touched.current) return;
+      commit(loaded ?? { ...EMPTY, tiles: newGame(gridSize) }, false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [gridSize]);
-
-  const snapshot = useCallback(
-    (
-      t: Tile[],
-      e: number,
-      c: number,
-      o: boolean,
-      w: boolean,
-      cont: boolean,
-      fin: boolean,
-      finCont: boolean
-    ): SavedGame => ({
-      gridSize,
-      tiles: aliveTiles(t).map(({ id, level, row, col }) => ({ id, level, row, col })),
-      earned: e,
-      combo: c,
-      over: o,
-      won: w,
-      continued: cont,
-      final: fin,
-      finalContinued: finCont,
-    }),
-    [gridSize]
-  );
+  }, [gridSize, commit]);
 
   const onSwipe = useCallback(
     (dir: Direction) => {
-      if (over) return;
-      const result = move(tiles, dir, gridSize);
+      const cur = ref.current;
+      // Kutlama penceresi (Külçe / Dünya Serveti) açıkken tahta oynanmaz: kaydırma
+      // tüm ekranda dinlendiği için pencerenin arkasında görünmeden hamle yapılıyordu
+      if (cur.over || (cur.won && !cur.continued) || (cur.final && !cur.finalContinued)) return;
+      const result = move(cur.tiles, dir, gridSize);
       if (!result.moved) return;
+      touched.current = true;
 
       const next = denominate(spawnRandom(result.tiles, gridSize));
-      setTiles(next);
-
-      let newEarned = earned;
-      let newCombo: number;
+      let earned = cur.earned;
+      let combo: number;
+      let comboGain = 0;
+      let gainedTL = 0;
       if (result.mergedLevels.length > 0) {
         const top = Math.max(...result.mergedLevels);
         playMerge(levelKind(top));
 
         // Combo: ardışık birleşmeler kazancı katlar
-        newCombo = combo + 1;
-        const multiplier = comboMultiplier(newCombo);
-        if (newCombo >= COMBO_START) playCombo(multiplier);
-        const baseTL = result.mergedLevels.reduce((sum, lv) => sum + VALUES_TL[lv], 0);
-        let gainedTL = baseTL * multiplier;
-        if (multiplier > 1) {
-          // Bonus tahtadaki en yüksek taşa endeksli: combo her aşamada anlamlı kazandırır
-          const maxLevel = Math.max(...aliveTiles(next).map((t) => t.level));
-          const bonus = VALUES_TL[maxLevel] * COMBO_BONUS_RATE * multiplier;
-          gainedTL = Math.round((gainedTL + bonus) * 100) / 100;
-          setComboGain(gainedTL);
-        } else {
-          setComboGain(0);
-        }
-        newEarned = earned + gainedTL;
-        setEarned(newEarned);
+        combo = cur.combo + 1;
+        const multiplier = comboMultiplier(combo);
+        if (combo >= COMBO_START) playCombo(multiplier);
+        const boardMax = Math.max(...aliveTiles(next).map((t) => t.level));
+        gainedTL = moveEarnings(result.mergedLevels, combo, boardMax, modsRef.current.mult);
+        if (multiplier > 1) comboGain = gainedTL;
+        earned += gainedTL;
         onEarn?.(gainedTL);
-        onMerge?.(result.mergedLevels, newCombo, gainedTL);
+        onMerge?.(result.mergedLevels, combo, gainedTL);
       } else {
-        newCombo = 0;
-        setComboGain(0);
+        combo = 0;
         playMove();
       }
-      setCombo(newCombo);
 
-      const newWon = won || hasReached(next, KULCE_LEVEL);
-      const newFinal = final || hasReached(next, MAX_LEVEL);
-      const newOver = !canMove(next, gridSize);
-      if (newWon) setWon(true);
-      if (newFinal) setFinal(true);
-      if (newOver) setOver(true);
-
-      persistGame(snapshot(next, newEarned, newCombo, newOver, newWon, continued, newFinal, finalContinued));
+      prev.current = { state: cur, gained: gainedTL, levels: result.mergedLevels, combo };
+      setCanUndo(true);
+      commit({
+        ...cur,
+        tiles: next,
+        earned,
+        combo,
+        comboGain,
+        won: cur.won || hasReached(next, KULCE_LEVEL),
+        final: cur.final || hasReached(next, MAX_LEVEL),
+        over: !canMove(next, gridSize),
+      });
     },
-    [tiles, over, won, continued, final, finalContinued, combo, earned, onEarn, onMerge, gridSize, snapshot]
+    [onEarn, onMerge, gridSize, commit]
   );
 
   const restart = useCallback(() => {
-    const fresh = newGame(gridSize);
-    setTiles(fresh);
-    setEarned(0);
-    setCombo(0);
-    setComboGain(0);
-    setOver(false);
-    setWon(false);
-    setContinued(false);
-    setFinal(false);
-    setFinalContinued(false);
-    persistGame(snapshot(fresh, 0, 0, false, false, false, false, false));
-  }, [gridSize, snapshot]);
+    touched.current = true;
+    prev.current = null;
+    setCanUndo(false);
+    commit({ ...EMPTY, tiles: newGame(gridSize) });
+  }, [gridSize, commit]);
 
-  const keepPlaying = useCallback(() => {
-    setContinued(true);
-    persistGame(snapshot(tiles, earned, combo, over, won, true, final, finalContinued));
-  }, [tiles, earned, combo, over, won, final, finalContinued, snapshot]);
+  const undo = useCallback(() => {
+    const cur = ref.current;
+    const p = prev.current;
+    if (!p || cur.undoUsed >= modsRef.current.charges.undo) return;
+    prev.current = null;
+    setCanUndo(false);
+    playUndo();
+    // Hamlenin kazancı cüzdandan geri alınır; kutlama durumları (won/final) korunur
+    if (p.gained) onEarn?.(-p.gained);
+    // Başarım sayaçları da (toplam kazanç, ×5/×10'a ulaşma, oluşturulan taşlar) geri alınır
+    if (p.levels.length > 0) onMerge?.(p.levels, p.combo, p.gained, true);
+    commit({
+      ...p.state,
+      // Önceki hamlenin canlandırma işaretleri temizlenir; sönmüş taşlar zaten yoktu
+      tiles: p.state.tiles.filter((t) => !t.dying).map((t) => ({ ...t, spawned: false, popped: false })),
+      comboGain: 0,
+      won: cur.won,
+      continued: cur.continued,
+      final: cur.final,
+      finalContinued: cur.finalContinued,
+      undoUsed: cur.undoUsed + 1,
+      hammerUsed: cur.hammerUsed,
+    });
+  }, [onEarn, onMerge, commit]);
 
-  const keepPlayingFinal = useCallback(() => {
-    setFinalContinued(true);
-    persistGame(snapshot(tiles, earned, combo, over, won, continued, final, true));
-  }, [tiles, earned, combo, over, won, continued, final, snapshot]);
+  const smash = useCallback(
+    (tileId: number) => {
+      const cur = ref.current;
+      if (cur.hammerUsed >= modsRef.current.charges.hammer) return;
+      const alive = aliveTiles(cur.tiles);
+      if (alive.length < 2 || !alive.some((t) => t.id === tileId)) return;
+      prev.current = null; // çekiç geri alınamaz
+      setCanUndo(false);
+      playSmash();
+      // Kırılan taş yerinde söner (dying); sonraki hamlede listeden düşer
+      const tiles = cur.tiles
+        .filter((t) => !t.dying)
+        .map((t) => (t.id === tileId ? { ...t, dying: true, popped: false, spawned: false } : { ...t, popped: false, spawned: false }));
+      commit({ ...cur, tiles, comboGain: 0, over: !canMove(tiles, gridSize), hammerUsed: cur.hammerUsed + 1 });
+    },
+    [gridSize, commit]
+  );
 
+  const keepPlaying = useCallback(() => commit({ ...ref.current, continued: true }), [commit]);
+  const keepPlayingFinal = useCallback(() => commit({ ...ref.current, finalContinued: true }), [commit]);
+
+  const { tiles, earned, combo, comboGain, over, won, continued, final, finalContinued } = state;
+  const undoLeft = Math.max(0, mods.charges.undo - state.undoUsed);
+  const hammerLeft = Math.max(0, mods.charges.hammer - state.hammerUsed);
   return {
     tiles,
     earned,
@@ -279,6 +347,11 @@ export function useGame(
     continued,
     final,
     finalContinued,
+    undoLeft,
+    hammerLeft,
+    canUndo,
+    undo,
+    smash,
     onSwipe,
     restart,
     keepPlaying,

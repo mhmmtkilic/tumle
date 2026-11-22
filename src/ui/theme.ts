@@ -88,6 +88,9 @@ export const numeric: TextStyle = { fontVariant: ['tabular-nums'] };
  */
 export const panelStyle: ViewStyle = {
   backgroundColor: colors.surface,
+  /** Yukarıdan ışık alan mavi yüz + üst kenarda ince parlama (RN 0.88 degrade/gölge) */
+  backgroundImage: 'linear-gradient(#2F5BA8, #22437F)',
+  boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.14)',
   borderRadius: radius.l,
   borderWidth: 2.5,
   borderColor: colors.outline,

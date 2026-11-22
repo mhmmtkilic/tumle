@@ -58,8 +58,14 @@ function TileView({ tile, cellSize, gap }: Props) {
       // Hedefe varır varmaz hızla yok ol: yeni taşın altından kenar sızmasın
       opacity.value = withDelay(SLIDE_MS - 60, withTiming(0, { duration: 40 }));
       scale.value = withDelay(SLIDE_MS - 60, withTiming(0.85, { duration: 40 }));
+    } else if (opacity.value < 1) {
+      // Geri Al: yutulmuş taş tahtaya geri döndü — yeniden görünür
+      opacity.value = withTiming(1, { duration: 140 });
+      if (!tile.spawned && !tile.popped) scale.value = withSpring(1, SPRING);
     }
-  }, [tile.spawned, tile.popped, tile.dying]);
+  // level: aynı taş art arda iki hamlede birleşirse popped hep true kalır;
+  // seviye değişimi de izlenmezse ikinci birleşmenin pop'u oynamıyordu
+  }, [tile.spawned, tile.popped, tile.dying, tile.level]);
 
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }, { translateY: y.value }, { scale: scale.value }],

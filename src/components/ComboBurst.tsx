@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
@@ -10,8 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { COMBO_IMAGES, ComboImageId } from './comboImages';
-import { formatTL } from '../game/levels';
-import { comboMultiplier } from '../useGame';
+import { formatMoney } from '../game/levels';
+import { COMBO_START, comboMultiplier } from '../useGame';
 import { GAME_FONT } from '../ui/theme';
 
 /*
@@ -23,7 +23,8 @@ import { GAME_FONT } from '../ui/theme';
  *    DURDURULAMAZ / İMKANSIZ); seri x20'ye kadar yükselir
  *  - kazanç aşağıdan yukarı süzülür
  * Yazılar PNG (scripts/render-combo.mjs); tüm hareket UI iş parçacığında.
- * Bileşen her yeni combo'da yeniden kurulmaz: `combo` değişince baştan oynar.
+ * Bileşen oyun boyunca kurulu kalır: `combo` eşiğe (COMBO_START) ulaşıp
+ * değiştikçe baştan oynar; eşiğin altındayken (0) saydam bekler.
  */
 
 /** Görseller 3x çizildi */
@@ -75,8 +76,12 @@ export function Coin({ index, seed, t }: { index: number; seed: number; t: Share
   return <Animated.Image source={COMBO_IMAGES.coin.src} style={[styles.coin, style]} />;
 }
 
-export default function ComboBurst({ combo, gain, shake }: { combo: number; gain: number; shake?: SharedValue<number> }) {
+function ComboBurst({ combo: liveCombo, gain: liveGain, shake }: { combo: number; gain: number; shake?: SharedValue<number> }) {
   const { width } = useWindowDimensions();
+  // Seri bitince (combo 0) son patlamanın görselleri yerinde kalır, solması yarıda kesilmez
+  const last = useRef({ combo: COMBO_START, gain: 0 });
+  if (liveCombo >= COMBO_START) last.current = { combo: liveCombo, gain: liveGain };
+  const { combo, gain } = last.current;
   const mult = comboMultiplier(combo);
   const color = tierColor(mult);
   const word = tierWord(mult);
@@ -93,6 +98,7 @@ export default function ComboBurst({ combo, gain, shake }: { combo: number; gain
   const rise = useSharedValue(0);
 
   useEffect(() => {
+    if (liveCombo < COMBO_START) return;
     for (const v of [stamp, label, wordIn, rays, ring, coins, rise]) v.value = 0;
     show.value = withSequence(withTiming(1, { duration: 60 }), withDelay(1050, withTiming(0, { duration: 260 })));
     // Damga: büyükten iner, çarpınca hafif ezilip yerine oturur
@@ -120,7 +126,7 @@ export default function ComboBurst({ combo, gain, shake }: { combo: number; gain
         )
       );
     }
-  }, [combo]);
+  }, [liveCombo]);
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: show.value }));
   const stampStyle = useAnimatedStyle(() => {
@@ -174,13 +180,15 @@ export default function ComboBurst({ combo, gain, shake }: { combo: number; gain
         ) : null}
         {gain > 0 ? (
           <Animated.View style={gainStyle}>
-            <Text style={styles.gain}>+{formatTL(gain)}</Text>
+            <Text style={styles.gain}>+{formatMoney(gain)}</Text>
           </Animated.View>
         ) : null}
       </View>
     </Animated.View>
   );
 }
+
+export default React.memo(ComboBurst);
 
 const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 5 },

@@ -12,7 +12,7 @@ import { ACHIEVEMENTS } from '../achievements/defs';
 import { useAchievements } from '../achievements/AchievementsContext';
 import { useEconomy } from '../economy/EconomyContext';
 import { ITEMS } from '../economy/items';
-import { formatTL } from '../game/levels';
+import { formatMoney } from '../game/levels';
 import { randomAvatar } from '../profile/avatar';
 import { NAME_MAX, useProfile } from '../profile/ProfileContext';
 import { useSettings } from '../settings/SettingsContext';
@@ -112,9 +112,10 @@ export default function ProfileScreen({ onBack, onEditAvatar, backRef }: Props) 
         />
 
         <GameStats
+          framed
           style={styles.stats}
           items={[
-            { label: 'Birikim', value: formatTL(wallet) },
+            { label: 'Birikim', value: formatMoney(wallet) },
             { label: 'Eşya', value: `${ownedCount}/${ITEMS.length}` },
             { label: 'Başarım', value: `${unlocked.length}/${ACHIEVEMENTS.length}` },
           ]}
@@ -146,13 +147,18 @@ export default function ProfileScreen({ onBack, onEditAvatar, backRef }: Props) 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: space.l },
-  bar: { marginBottom: space.s },
-  body: { alignItems: 'center', paddingBottom: space.xxl },
+  // Yan boşluk kök yerine içerikte: kaydırma alanı kendi kenarında kırpar; boşluk
+  // dışarıda kalınca tam genişlikteki kartın dış çerçevesi ve buton gölgeleri kesiliyordu
+  root: { flex: 1 },
+  bar: { marginBottom: space.s, marginHorizontal: space.l },
+  body: { alignItems: 'center', paddingHorizontal: space.l, paddingBottom: space.xxl },
+  /** Ana sayfadaki avatar gibi altın çerçeve */
   avatarFrame: {
-    backgroundColor: colors.surface,
-    borderWidth: 4,
+    backgroundColor: '#F2A91B',
+    backgroundImage: 'linear-gradient(#FFE58A, #F2A91B 60%, #C97A0C)',
+    borderWidth: 3,
     borderColor: colors.outline,
+    boxShadow: `0 5px 0 ${colors.outline}`,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: space.s,
@@ -164,7 +170,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFC531',
+    backgroundColor: '#2E8CF0',
+    backgroundImage: 'linear-gradient(#7FD0FF, #2E8CF0)',
+    boxShadow: 'inset 0 3px 0 rgba(255,255,255,0.35)',
     borderWidth: 3,
     borderColor: colors.outline,
     alignItems: 'center',

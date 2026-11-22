@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { SvgXml } from 'react-native-svg';
 import AvatarView from '../components/AvatarView';
@@ -157,7 +157,7 @@ function OptionGrid({
 
 /** Kategori sekmeleri: seçili sekme görünür alanın dışındaysa şerit ona kayar */
 function CategoryTabs({ cats, index, onSelect }: { cats: AvatarCategory[]; index: number; onSelect: (i: number) => void }) {
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const tabs = useRef<{ x: number; w: number }[]>([]);
   const barW = useRef(0);
   const scrollX = useRef(0);
@@ -292,8 +292,10 @@ const styles = StyleSheet.create({
   bar: { marginBottom: space.s },
   previewRow: { alignItems: 'center', marginBottom: space.m },
   preview: {
-    backgroundColor: colors.surface,
-    borderWidth: 4,
+    backgroundColor: '#F2A91B',
+    backgroundImage: 'linear-gradient(#FFE58A, #F2A91B 60%, #C97A0C)',
+    boxShadow: `0 5px 0 ${colors.outline}`,
+    borderWidth: 3,
     borderColor: colors.outline,
     alignItems: 'center',
     justifyContent: 'center',
@@ -305,11 +307,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
+    backgroundImage: 'linear-gradient(#3B68B5, #24468A)',
+    boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.18)',
     borderWidth: 2.5,
     borderColor: colors.outline,
     borderBottomWidth: 4.5,
   },
-  tabOn: { backgroundColor: '#FFB21E' },
+  tabOn: { backgroundColor: '#FFB21E', backgroundImage: 'linear-gradient(#FFE58A, #E9A11A)' },
   tabText: { ...type.headline, fontSize: 15, color: colors.label },
   panel: { ...panelStyle, flex: 1, marginHorizontal: -space.xs, overflow: 'hidden' },
   save: { marginTop: space.m },
@@ -321,6 +325,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: radius.l,
     backgroundColor: colors.surfaceTop,
+    backgroundImage: 'radial-gradient(#5E8AD0, #34589A)',
     borderWidth: 2.5,
     borderColor: colors.outline,
     borderBottomWidth: 5,
@@ -328,7 +333,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  tileOn: { borderColor: '#FFC531' },
+  /** Seçili parça: altın kenar + dış koyu halka */
+  tileOn: { borderColor: '#FFC531', boxShadow: '0 0 0 2.5px #1B2238' },
   tileEmpty: { flex: 1 },
   noneTag: {
     position: 'absolute',

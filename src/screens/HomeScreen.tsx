@@ -1,16 +1,16 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import AvatarView from '../components/AvatarView';
-import { BagIcon, CrownIcon, GearIcon, HouseIcon, SpeakerIcon, TrophyIcon } from '../components/icons';
-import ChunkyButton from '../ui/game/ChunkyButton';
-import { GameText, Panel } from '../ui/game/Panel';
-import { PANEL } from '../ui/game/skins';
+import NextItemCard from '../components/NextItemCard';
+import { GearIcon, HouseIcon } from '../components/icons';
+import CoinIcon from '../ui/game/CoinIcon';
+import CurrencyChip from '../ui/game/CurrencyChip';
+import PlayButton from '../ui/game/PlayButton';
+import { OUTLINE } from '../ui/game/skins';
 import { useEconomy } from '../economy/EconomyContext';
-import { ITEMS } from '../economy/items';
-import { useAchievements } from '../achievements/AchievementsContext';
+import { earnMultiplier, formatMult, ITEMS } from '../economy/items';
 import { useProfile } from '../profile/ProfileContext';
-import { useSettings } from '../settings/SettingsContext';
-import { formatTL } from '../game/levels';
+import { formatMoney } from '../game/levels';
 import { space } from '../ui/theme';
 
 interface Props {
@@ -18,70 +18,49 @@ interface Props {
   onShop: () => void;
   onCity: () => void;
   onSettings: () => void;
-  onAchievements: () => void;
   onProfile: () => void;
-  onLeaderboard: () => void;
 }
 
-const ICON = { size: 24, color: '#FFFFFF' };
+const COIN = <CoinIcon size={42} />;
+const HOUSE = <HouseIcon size={36} />;
+const GEAR = <GearIcon size={30} />;
 
-/** Ana menü: arkada oyuncunun dönen 3D mahallesi (App çizer), önde Clash Royale tarzı panel ve butonlar */
-export default function HomeScreen({ onPlay, onShop, onCity, onSettings, onAchievements, onProfile, onLeaderboard }: Props) {
+/**
+ * Ana sayfa: arkada oyuncunun dönen 3D mahallesi (App çizer). Üstte avatar,
+ * cüzdan ve eşya sayacı; altta sıradaki eşya hedefi ve büyük Oyna butonu.
+ * Diğer ekranlara alt gezinti çubuğundan (App) gidilir.
+ */
+export default function HomeScreen({ onPlay, onShop, onCity, onSettings, onProfile }: Props) {
   const { wallet, owned } = useEconomy();
-  const { musicOn, setMusicOn } = useSettings();
-  const { claimable } = useAchievements();
-  const { avatar, name } = useProfile();
+  const { avatar } = useProfile();
   const ownedCount = ITEMS.filter((i) => owned.includes(i.id)).length;
+  const mult = earnMultiplier(owned);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.topBar}>
-        <ChunkyButton
-          label="Profil"
-          square
-          skin="blue"
-          onPress={onProfile}
-          icon={
-            <View style={styles.avatarClip}>
-              <AvatarView config={avatar} size={40} />
+    <View style={styles.root} pointerEvents="box-none">
+      <View style={styles.top}>
+        <Pressable onPress={onProfile} hitSlop={4} accessibilityRole="button" accessibilityLabel="Profil">
+          {({ pressed }) => (
+            <View style={[styles.avatarFrame, pressed && styles.pressed]}>
+              <View style={styles.avatarClip}>
+                <AvatarView config={avatar} size={42} />
+              </View>
             </View>
-          }
-        />
-        {/* Profil ve ayarlar butonlarıyla aynı yükseklik: üst bar tek hizada */}
-        <Panel style={styles.wallet} innerStyle={styles.walletInner}>
-          <GameText size={12} style={styles.walletLabel} numberOfLines={1}>
-            {name || 'BİRİKİM'}
-          </GameText>
-          <GameText size={21} style={styles.walletValue} numberOfLines={1}>
-            {formatTL(wallet)}
-          </GameText>
-        </Panel>
-        <ChunkyButton label="Ayarlar" square skin="blue" onPress={onSettings} icon={<GearIcon {...ICON} />} />
-      </View>
-      <View style={styles.sideCol}>
-        <ChunkyButton label="Başarımlar" square skin="blue" badge={claimable} onPress={onAchievements} icon={<TrophyIcon {...ICON} />} />
-        <ChunkyButton label="Zenginler" square skin="blue" onPress={onLeaderboard} icon={<CrownIcon size={28} />} />
-        <ChunkyButton
-          label={musicOn ? 'Müziği kapat' : 'Müziği aç'}
-          square
-          skin="blue"
-          onPress={() => setMusicOn(!musicOn)}
-          icon={<SpeakerIcon muted={!musicOn} {...ICON} />}
-        />
+          )}
+        </Pressable>
+        <CurrencyChip icon={COIN} value={formatMoney(wallet)} plus onPress={onShop} label="Birikim, mağazaya git" style={styles.wallet} />
+        <CurrencyChip icon={HOUSE} value={`${ownedCount}/${ITEMS.length}`} onPress={onCity} label="Eşyalar, Mahallem" style={styles.items} />
+        <Pressable onPress={onSettings} hitSlop={4} accessibilityRole="button" accessibilityLabel="Ayarlar">
+          {({ pressed }) => <View style={[styles.gear, pressed && styles.pressed]}>{GEAR}</View>}
+        </Pressable>
       </View>
 
-      <View style={styles.spacer} />
+      <View style={styles.spacer} pointerEvents="none" />
 
       <View style={styles.bottom}>
-        <Panel style={styles.progress}>
-          <GameText size={15}>
-            🏘 {ownedCount} / {ITEMS.length} eşya
-          </GameText>
-        </Panel>
-        <ChunkyButton label="OYNA" size="large" skin="yellow" onPress={onPlay} />
-        <View style={styles.row}>
-          <ChunkyButton label="MAĞAZA" skin="blue" icon={<BagIcon {...ICON} />} onPress={onShop} style={styles.flex1} />
-          <ChunkyButton label="MAHALLEM" skin="green" icon={<HouseIcon {...ICON} />} onPress={onCity} style={styles.flex1} />
+        <NextItemCard owned={owned} wallet={wallet} onPress={onShop} />
+        <View style={styles.play}>
+          <PlayButton label="Oyna" sub={mult > 1 ? `Kazanç ${formatMult(mult)}` : undefined} onPress={onPlay} />
         </View>
       </View>
     </View>
@@ -89,18 +68,36 @@ export default function HomeScreen({ onPlay, onShop, onCity, onSettings, onAchie
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: space.l },
-  topBar: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s },
-  avatarClip: { width: 40, height: 40, borderRadius: 10, overflow: 'hidden' },
-  // ChunkyButton (medium, kare) toplam yüksekliği: 52 + 2×2.5 kontur
-  wallet: { flex: 1, height: 57 },
-  walletInner: { flex: 1, paddingVertical: 0, justifyContent: 'center' },
-  walletLabel: { color: PANEL.subtext, lineHeight: 14 },
-  walletValue: { lineHeight: 25 },
-  sideCol: { alignSelf: 'flex-end', gap: space.s, marginTop: space.s },
+  root: { flex: 1, paddingHorizontal: space.m },
+  top: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  pressed: { transform: [{ scale: 0.94 }] },
+  avatarFrame: {
+    width: 54,
+    height: 54,
+    borderRadius: 15,
+    borderWidth: 2.5,
+    borderColor: OUTLINE,
+    padding: 3,
+    backgroundColor: '#F2A91B',
+    backgroundImage: 'linear-gradient(#FFE58A, #F2A91B 60%, #C97A0C)',
+    boxShadow: `0 3px 0 ${OUTLINE}`,
+  },
+  avatarClip: { flex: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: '#9A5A08', backgroundColor: '#8FD3FF', alignItems: 'center', justifyContent: 'center' },
+  wallet: { flex: 1.6 },
+  items: { flex: 1 },
+  gear: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2.5,
+    borderColor: OUTLINE,
+    backgroundColor: '#2E8CF0',
+    backgroundImage: 'linear-gradient(#7FD0FF, #2E8CF0)',
+    boxShadow: `inset 0 3px 0 rgba(255,255,255,0.35), 0 3px 0 ${OUTLINE}`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   spacer: { flex: 1 },
-  bottom: { gap: space.m, width: '100%', maxWidth: 420, alignSelf: 'center' },
-  progress: { alignSelf: 'center' },
-  row: { flexDirection: 'row', gap: space.m },
-  flex1: { flex: 1 },
+  bottom: { gap: space.l, width: '100%', maxWidth: 420, alignSelf: 'center', paddingHorizontal: space.s, paddingBottom: space.m },
+  play: { alignItems: 'center' },
 });

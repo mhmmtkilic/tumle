@@ -2,8 +2,9 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, FadeIn, ZoomIn } from 'react-native-reanimated';
 import ChunkyButton from '../ui/game/ChunkyButton';
+import GameDialog from '../ui/game/GameDialog';
 import { Skin } from '../ui/game/skins';
-import { colors, panelStyle, space, type } from '../ui/theme';
+import { colors, space, type } from '../ui/theme';
 
 interface Props {
   visible: boolean;
@@ -19,7 +20,7 @@ interface Props {
   onCancel: () => void;
 }
 
-/** Oyun diyaloğu: ortada lacivert panel, altta iki kalın buton (vazgeç / onayla) */
+/** Oyun diyaloğu: altın çerçeveli pencere, kurdele başlık, altta iki kalın buton (vazgeç / onayla) */
 export default function ConfirmModal({
   visible,
   title,
@@ -37,8 +38,8 @@ export default function ConfirmModal({
       <Animated.View entering={FadeIn.duration(180)} style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
         <Animated.View entering={ZoomIn.duration(200).easing(Easing.out(Easing.cubic))} style={styles.card}>
+          <GameDialog title={title} tone={confirmSkin === 'red' ? 'red' : 'blue'} onClose={onCancel}>
           <View style={styles.body}>
-            <Text style={styles.title}>{title}</Text>
             <Text style={styles.message}>{message}</Text>
             {items && items.length > 0 ? (
               <View style={styles.list}>
@@ -54,6 +55,7 @@ export default function ConfirmModal({
             <ChunkyButton label={cancelLabel} skin="gray" size="small" onPress={onCancel} style={styles.flex1} />
             <ChunkyButton label={confirmLabel} skin={confirmSkin} size="small" onPress={onConfirm} style={styles.flex1} />
           </View>
+          </GameDialog>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -68,12 +70,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: space.xxl,
   },
-  card: { ...panelStyle, width: '100%', maxWidth: 320, padding: space.l },
-  body: { alignItems: 'center' },
-  title: { ...type.title2, color: colors.label, textAlign: 'center' },
-  message: { ...type.subhead, color: colors.secondaryLabel, textAlign: 'center', marginTop: space.s },
+  card: { width: '100%', maxWidth: 340, alignItems: 'center' },
+  body: { alignItems: 'center', alignSelf: 'stretch' },
+  message: { ...type.callout, color: colors.label, textAlign: 'center', lineHeight: 21 },
   list: { alignSelf: 'stretch', marginTop: space.m, gap: 3 },
   listText: { ...type.subhead, color: colors.label },
-  actions: { flexDirection: 'row', gap: space.s, marginTop: space.l },
+  actions: { flexDirection: 'row', gap: space.s, marginTop: space.l, alignSelf: 'stretch' },
   flex1: { flex: 1 },
 });

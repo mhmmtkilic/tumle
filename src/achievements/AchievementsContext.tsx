@@ -1,19 +1,19 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ACHIEVEMENTS, AchievementDef, AchStat, rewardOf } from './defs';
 import { KULCE_LEVEL, levelKind, MAX_LEVEL, TileKind } from '../game/levels';
 import { SPAWN_FLOOR_GAP } from '../game/engine';
-import { PLACED_ITEMS } from '../economy/items';
+import { earnMultiplier, PLACED_ITEMS } from '../economy/items';
 import { useEconomy } from '../economy/EconomyContext';
 import { playAchievement, playMerge } from '../audio';
 import AchievementCelebration from '../components/AchievementCelebration';
 
-// v2: başarımlar sınırsız para döneminde kendiliğinden açılıp ödül ödemiş
-// olabilir (birikim/eşya eşikleri). Gerçek ekonomiyle birlikte onlar da sıfırlanır.
-const ACH_KEY = '@gamemoney/achievements_v2';
-const CLAIMED_KEY = '@gamemoney/achievements_claimed_v2';
-const STATS_KEY = '@gamemoney/achievement_stats_v1';
+// v4/v3: gerçek fiyat ölçeği (2026-11) ödülleri ve TL eşiklerini değiştirdi;
+// eski ölçekte açılmış/ödenmiş başarımlar ve kazanç sayacı taşınmaz.
+const ACH_KEY = '@gamemoney/achievements_v4';
+const CLAIMED_KEY = '@gamemoney/achievements_claimed_v4';
+const STATS_KEY = '@gamemoney/achievement_stats_v3';
 
 type Stats = Record<AchStat, number>;
 const EMPTY_STATS: Stats = { make4: 0, make5: 0, hit5: 0, hit10: 0, earned: 0 };
@@ -35,8 +35,11 @@ interface AchApi {
   reportCombo: (mult: number, streak: number) => void;
   /** Devam eden oyunda birikmiş kazanç */
   reportGameEarned: (tl: number) => void;
-  /** Bir hamlenin birleşmeleri: oluşan seviyeler, ham combo serisi, kazanılan TL (sayaçlar) */
-  reportMerge: (levels: number[], combo: number, gainedTL: number) => void;
+  /**
+   * Bir hamlenin birleşmeleri: oluşan seviyeler, ham combo serisi, kazanılan TL
+   * (sayaçlar). `revert`: hamle Geri Al ile geri alındı, sayaçlardan düşülür.
+   */
+  reportMerge: (levels: number[], combo: number, gainedTL: number, revert?: boolean) => void;
   /** Sayaçlı başarımın ilerlemesi (yoksa null) */
   progressOf: (id: string) => { cur: number; n: number } | null;
   /** Tüm başarımları kilitler ve kaydı siler (ilerleme sıfırlamada kullanılır) */
@@ -44,6 +47,17 @@ interface AchApi {
 }
 
 const Ctx = createContext<AchApi | null>(null);
+
+/**
+ * TL eşikleri (defs'teki açıklamalarla ve scripts/economy'deki T ile aynı olmalı).
+ * Gelir eşyalarla katlandığı için bunlar beceriden çok ilerlemeyi ölçer: orta
+ * oyuncu ₺10 Mn'yi Müstakil Ev'e biriktirirken, ₺1 Mr'yi Özel Ada'ya biriktirirken
+ * görür; tek oyunda ₺50 Mn Sahil Arsası, ₺1 Mr Gökdelen dolaylarında gelir.
+ */
+const MILYONER_TL = 10_000_000;
+const HOLDING_TL = 1_000_000_000;
+const BOGA_TL = 50_000_000;
+const HIPER_TL = 1_000_000_000;
 
 /**
  * Zincir kilometre taşları: tahtada bu seviyeye ULAŞMAK başarımı açar.
@@ -76,10 +90,10 @@ const KIND_SETS: { kind: TileKind; need: number; id: string }[] = [
   { kind: 'crypto', need: 2, id: 'sogukzincir' },
 ];
 
-// Doğum tabanı her hamlede max-SPAWN_FLOOR_GAP'e yükselip altındaki taşları
-// yukarı çektiği için tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 farklı seviye
-// durabilir. Daha fazlasını isteyen koleksiyon asla açılmaz — bu yüzden burada
-// patlar (ulaşılamaz başarım sessizce kalmasın).
+// Doğum tabanı max-floorGap(max)'e yükselip altındaki taşları yukarı çeker.
+// Aralık en az SPAWN_FLOOR_GAP olduğundan SPAWN_FLOOR_GAP+1 farklı seviye her
+// zaman tahtaya sığar; daha fazlasını isteyen koleksiyon Külçe öncesinde asla
+// açılmaz — bu yüzden burada patlar (ulaşılamaz başarım sessizce kalmasın).
 for (const s of KIND_SETS) {
   if (s.need > SPAWN_FLOOR_GAP + 1) throw new Error(`Ulaşılamaz koleksiyon: ${s.id}`);
 }
@@ -98,7 +112,17 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
   const statsSave = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queue = useRef<AchievementDef[]>([]);
   const showing = useRef(false);
-  const { wallet, owned, addEarnings } = useEconomy();
+  const { wallet, owned, addEarnings, getWallet, subscribeWallet } = useEconomy();
+  /** Ödüller oyuncunun o anki kazanç çarpanıyla ölçeklenir (bkz. defs.rewardOf) */
+  const mult = earnMultiplier(owned);
+  const multRef = useRef(mult);
+  multRef.current = mult;
+  /**
+   * Kayıt diskten okunmadan gelen açma istekleri burada bekler. Okuma bitmeden
+   * yazılırsa disk yalnız o tek başarımla ezilir, açılmış her şey kaybolurdu.
+   */
+  const hydrated = useRef(false);
+  const pending = useRef<string[]>([]);
 
   useEffect(() => {
     const valid = (raw: string | null) =>
@@ -118,7 +142,11 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
         setUnlocked(ids);
         setClaimed(got);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        hydrated.current = true;
+        for (const id of pending.current.splice(0)) unlockRef.current(id);
+      });
   }, []);
 
   const claim = useCallback(
@@ -129,7 +157,7 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       claimedRef.current = [...claimedRef.current, id];
       setClaimed(claimedRef.current);
       AsyncStorage.setItem(CLAIMED_KEY, JSON.stringify(claimedRef.current)).catch(() => {});
-      addEarnings(rewardOf(def));
+      addEarnings(rewardOf(def, multRef.current));
       playMerge('gold');
       return true;
     },
@@ -137,6 +165,10 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
   );
 
   const unlock = useCallback((id: string) => {
+    if (!hydrated.current) {
+      if (!pending.current.includes(id)) pending.current.push(id);
+      return;
+    }
     if (unlockedRef.current.includes(id)) return;
     unlockedRef.current = [...unlockedRef.current, id];
     setUnlocked(unlockedRef.current);
@@ -152,6 +184,9 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       }
     }
   }, []);
+
+  const unlockRef = useRef(unlock);
+  unlockRef.current = unlock;
 
   const nextToast = useCallback(() => {
     const next = queue.current.shift();
@@ -172,9 +207,20 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
   }, [owned, unlock]);
 
   useEffect(() => {
-    if (wallet >= 1_000_000) unlock('milyoner');
-    if (wallet >= 10_000_000) unlock('holding');
+    if (wallet >= MILYONER_TL) unlock('milyoner');
+    if (wallet >= HOLDING_TL) unlock('holding');
   }, [wallet, unlock]);
+  // Oyun sırasında `wallet` durumu dondurulur; eşikler anlık değerden de izlenir
+  // ki birikim başarımları oyunun ortasında, tam o hamlede açılsın
+  useEffect(
+    () =>
+      subscribeWallet(() => {
+        const w = getWallet();
+        if (w >= MILYONER_TL) unlock('milyoner');
+        if (w >= HOLDING_TL) unlock('holding');
+      }),
+    [subscribeWallet, getWallet, unlock]
+  );
 
   const reportBoard = useCallback(
     (levels: number[]) => {
@@ -187,8 +233,9 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       const perKind = new Map<TileKind, Set<number>>();
       for (const lv of levels) {
         if (lv > max) max = lv;
-        if (lv >= KULCE_LEVEL) kulceCount++;
-        if (lv >= 9) goldCount++;
+        // Açıklamalar "Külçe" ve "altın taşı" der: üst seviyeler (mücevher vb.) sayılmaz
+        if (lv === KULCE_LEVEL) kulceCount++;
+        if (levelKind(lv) === 'gold') goldCount++;
         if (lv >= 13 && lv <= 18) gemCount++; // Yeşim…Pembe Elmas
         distinct.add(lv);
         const kind = levelKind(lv);
@@ -208,7 +255,7 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       if (kulceCount >= 2) unlock('ciftekulce');
       if (goldCount >= 4) unlock('altincag');
       if (gemCount >= 3) unlock('mucevherkutusu');
-      // Tahtada aynı anda en çok SPAWN_FLOOR_GAP+1 (=8) farklı seviye durabilir
+      // Taban aralığı en az SPAWN_FLOOR_GAP: SPAWN_FLOOR_GAP+1 (=8) farklı seviye her zaman mümkün
       if (distinct.size >= SPAWN_FLOOR_GAP + 1) unlock('numizmat');
     },
     [unlock]
@@ -222,22 +269,28 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
   );
 
   const reportMerge = useCallback(
-    (levels: number[], combo: number, gainedTL: number) => {
+    (levels: number[], combo: number, gainedTL: number, revert = false) => {
       const s = { ...statsRef.current };
+      // Geri alınan hamle aynı miktarlarla sayaçlardan düşülür (açılmış başarım geri alınmaz)
+      const d = revert ? -1 : 1;
       for (const lv of levels) {
-        if (lv === 4) s.make4++;
-        if (lv === 5) s.make5++;
+        if (lv === 4) s.make4 += d;
+        if (lv === 5) s.make5 += d;
       }
       // Seri ×5'e / ×10'a ilk ulaştığı hamle sayılır (üstünde kalmak saymaz)
-      if (combo === 5) s.hit5++;
-      if (combo === 10) s.hit10++;
-      s.earned += gainedTL;
+      if (combo === 5) s.hit5 += d;
+      if (combo === 10) s.hit10 += d;
+      s.earned += gainedTL * d;
       statsRef.current = s;
-      setStats(s);
-      // Her hamlede diske yazılmaz; kısa aralıkla toplanır
+      // Her hamlede ne diske yazılır ne de ekran durumu güncellenir; ikisi de kısa
+      // aralıkla toplanır. Sayaç durumu her birleşmede değişince bu bağlamı
+      // kullanan bütün ekranlar (34 rozetli Başarımlar dahil) yeniden çiziliyordu
       if (statsSave.current) clearTimeout(statsSave.current);
-      statsSave.current = setTimeout(() => AsyncStorage.setItem(STATS_KEY, JSON.stringify(statsRef.current)).catch(() => {}), 800);
-      for (const g of GOALS) if (s[g.goal!.stat] >= g.goal!.n) unlock(g.id);
+      statsSave.current = setTimeout(() => {
+        setStats(statsRef.current);
+        AsyncStorage.setItem(STATS_KEY, JSON.stringify(statsRef.current)).catch(() => {});
+      }, 800);
+      if (!revert) for (const g of GOALS) if (s[g.goal!.stat] >= g.goal!.n) unlock(g.id);
     },
     [unlock]
   );
@@ -252,8 +305,8 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
 
   const reportGameEarned = useCallback(
     (tl: number) => {
-      if (tl >= 100_000) unlock('boga');
-      if (tl >= 1_000_000) unlock('hiper');
+      if (tl >= BOGA_TL) unlock('boga');
+      if (tl >= HIPER_TL) unlock('hiper');
     },
     [unlock]
   );
@@ -266,6 +319,8 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
     setToast(null);
     queue.current = [];
     showing.current = false;
+    // Bekleyen sayaç kaydı sıfırlamadan sonra eski değeri geri yazmasın
+    if (statsSave.current) clearTimeout(statsSave.current);
     statsRef.current = EMPTY_STATS;
     setStats(EMPTY_STATS);
     AsyncStorage.multiRemove([ACH_KEY, CLAIMED_KEY, STATS_KEY]).catch(() => {});
@@ -273,11 +328,17 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
 
   const claimable = unlocked.filter((id) => !claimed.includes(id)).length;
 
+  // Sabit kimlik: sağlayıcı (kutlama, cüzdan) yeniden çizilince tüketiciler çizilmesin
+  const value = useMemo<AchApi>(
+    () => ({ unlocked, claimed, claimable, claim, reportBoard, reportCombo, reportGameEarned, reportMerge, progressOf, resetAchievements }),
+    [unlocked, claimed, claimable, claim, reportBoard, reportCombo, reportGameEarned, reportMerge, progressOf, resetAchievements]
+  );
+
   return (
-    <Ctx.Provider value={{ unlocked, claimed, claimable, claim, reportBoard, reportCombo, reportGameEarned, reportMerge, progressOf, resetAchievements }}>
+    <Ctx.Provider value={value}>
       <View style={styles.fill}>
         {children}
-        {toast ? <AchievementCelebration key={toast.id} def={toast} onDone={nextToast} /> : null}
+        {toast ? <AchievementCelebration key={toast.id} def={toast} mult={mult} onDone={nextToast} /> : null}
       </View>
     </Ctx.Provider>
   );

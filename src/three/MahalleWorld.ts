@@ -978,7 +978,15 @@ export class MahalleWorld {
       this.camDirty = false;
     }
 
-    if (this.anims.length) this.anims = this.anims.filter((a) => a(dt));
+    if (this.anims.length) {
+      // Bir animasyon çalışırken yenisini başlatabilir (iniş → toz + konfeti).
+      // Liste yerinde süzülürse o yeni eklenenler kayboluyor, toz halkası ve
+      // konfeti sahnede donup kalıyordu; bu yüzden yeniler ayrı listede toplanır.
+      const running = this.anims;
+      this.anims = [];
+      const kept = running.filter((a) => a(dt));
+      this.anims = kept.concat(this.anims);
+    }
 
     this.floatClouds();
 

@@ -55,18 +55,29 @@ function emptyCells(tiles: Tile[], size: number): { row: number; col: number }[]
 }
 
 /**
- * Yükselen taban: doğan taş, tahtadaki en yüksek taşın bu kadar altından başlar.
- * Her seviye atlama böylece sabit zorlukta kalır (~2^8 taban taşlık iş);
- * K küçülürse oyun kolaylaşıp para musluğuna döner, büyürse üst seviyeler
- * bugünkü gibi ulaşılamaz olur (simülasyonla kalibre edildi).
+ * Yükselen taban: doğan taş, tahtadaki en yüksek taşın floorGap(max) altından
+ * başlar. Aralık sabit 7 iken Külçe'den sonra her seviye ~120 hamlede geliyor,
+ * iyi bir oyuncu tek oyunda Dünya Serveti'ne (24) ulaşıyordu. Bu yüzden aralık
+ * Külçe'den sonra açılır: her yeni seviye öncekinden daha çok iş ister.
+ *
+ * Kalibrasyon (`npm run economy`, usta bot, 90 oyun): Külçe %58, Safir (16) %11,
+ * Bitcoin (19) %3 — mücevherler ustalara açık, kripto ve epik nadir ödüller.
  */
 export const SPAWN_FLOOR_GAP = 7;
 
-/** Doğan taşların alt seviyesi: max(1, en yüksek taş - SPAWN_FLOOR_GAP) */
+/** Tahtadaki en yüksek seviyeye göre doğum tabanının aralığı (en az SPAWN_FLOOR_GAP) */
+export function floorGap(maxLevel: number): number {
+  if (maxLevel <= 12) return SPAWN_FLOOR_GAP; // Külçe'ye kadar
+  if (maxLevel <= 18) return SPAWN_FLOOR_GAP + 1; // mücevherler
+  return SPAWN_FLOOR_GAP + 2; // kripto ve epik
+}
+
+/** Doğan taşların alt seviyesi: max(1, en yüksek taş - floorGap) */
 export function spawnFloor(tiles: Tile[]): number {
   const alive = aliveTiles(tiles);
   if (alive.length === 0) return 1;
-  return Math.max(1, Math.max(...alive.map((t) => t.level)) - SPAWN_FLOOR_GAP);
+  const max = Math.max(...alive.map((t) => t.level));
+  return Math.max(1, max - floorGap(max));
 }
 
 /** %90 taban seviye, %10 taban+1 (açılışta 1 Kuruş / 10 Kuruş) */

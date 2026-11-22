@@ -135,3 +135,27 @@ export function playAchievement() {
   }
   if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 }
+
+/** Geri Al: kağıt hışırtısı + hafif titreşim */
+export function playUndo() {
+  if (soundEnabled) {
+    const p = players?.note;
+    if (p) {
+      p.seekTo(0);
+      p.play();
+    }
+  }
+  if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+}
+
+/** Çekiç: metal şıkırtısı + sert titreşim */
+export function playSmash() {
+  if (soundEnabled) {
+    const p = players?.coin;
+    if (p) {
+      p.seekTo(0);
+      p.play();
+    }
+  }
+  if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+}

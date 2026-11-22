@@ -19,8 +19,19 @@ export interface Layer {
   /** Çizgi rengi ve kalınlığı (açık uçlu şekiller: kulp, dalga, ok) */
   stroke?: string;
   sw?: number;
+  fillOpacity?: number;
+  strokeOpacity?: number;
+  /** Dikey degrade dolgu [üst, alt]; `fill` yerine geçer (hacim/ışık verir) */
+  grad?: [string, string];
+  /** İç detay (pencere çerçevesi, kiremit çizgisi…): koyu kontur ve gölge almaz */
+  detail?: boolean;
   /** Parlak yansıma: konturu yok, yarı saydam beyaz */
   shine?: boolean;
+}
+
+/** Konturu çizilen gövde katmanları (detay ve parlama hariç) */
+export function isSolid(l: Layer): boolean {
+  return !l.shine && !l.detail;
 }
 
 /** Dişli: dış ve iç yarıçap arasında dişli çokgen */
@@ -56,29 +67,49 @@ export const ICON_SPECS = {
   check: [{ d: 'M5 25l8-8 8 8 15-15 8 8-23 23z', fill: GREEN }, { d: 'M7 25l6-6 6 6-2 2z', shine: true }],
   cross: [{ d: 'M11 4l13 13L37 4l7 7-13 13 13 13-7 7-13-13-13 13-7-7 13-13L4 11z', fill: RED }, { d: 'M11 7l5 5-3 3-5-5z', shine: true }],
   gear: [
-    { d: gear(24, 24, 20, 15, 8), fill: SILVER },
-    { circle: [24, 24, 7], fill: SILVER_DARK },
+    { d: gear(24, 24, 20, 15, 8), grad: ['#F4F7FC', '#9AA5B8'] },
+    { circle: [24, 24, 11], stroke: '#8792A6', sw: 2, detail: true },
+    { circle: [24, 24, 7], grad: ['#7D889E', '#4A5468'] },
+    { circle: [22, 22, 2.2], fill: '#FFFFFF', detail: true },
     { d: 'M14 11a14 14 0 0 1 20 0l-3 3a10 10 0 0 0-14 0z', shine: true },
   ],
   trophy: [
-    { d: 'M13 11H7c0 8 4 12 9 13', stroke: GOLD, sw: 4 },
-    { d: 'M35 11h6c0 8-4 12-9 13', stroke: GOLD, sw: 4 },
-    { d: 'M12 6h24v11c0 9-5 14-12 14S12 26 12 17z', fill: GOLD },
-    { d: 'M21 30h6v7h-6z', fill: GOLD_DARK },
-    { d: 'M13 37h22v7H13z', fill: GOLD_DARK },
-    { d: 'M15 9h5v9c0 4 1 7 3 9-5-1-8-5-8-10z', shine: true },
+    { d: 'M13 11H7c0 8 4 12 9 13', stroke: GOLD_DARK, sw: 4 },
+    { d: 'M35 11h6c0 8-4 12-9 13', stroke: GOLD_DARK, sw: 4 },
+    { d: 'M12 5h24v12c0 9-5 14-12 14S12 26 12 17z', grad: ['#FFF08A', '#F2A91B'] },
+    { d: 'M12 5h24v3H12z', fill: '#E39A12', detail: true },
+    { d: 'M21 30h6v6h-6z', grad: ['#F0B12A', '#C47A0C'] },
+    { d: 'M16 35h16v3H16z', grad: ['#F2C04A', '#C47A0C'] },
+    { d: 'M11 38h26v7H11z', grad: ['#9A6332', '#5E3A18'] },
+    { d: 'M18 40h12v3H18z', fill: '#FFD45A', detail: true },
+    { d: 'M24 10.5l2 4.2 4.6.6-3.4 3.2.9 4.6-4.1-2.3-4.1 2.3.9-4.6-3.4-3.2 4.6-.6z', fill: '#FFF7CF', detail: true },
+    { d: 'M15 9h4v9c0 4 1 7 3 9-5-1-7-5-7-10z', shine: true },
   ],
   bag: [
-    { d: 'M17 17v-5a7 7 0 0 1 14 0v5', stroke: RED_DARK, sw: 4 },
-    { d: 'M8 16h32l-2 27H10z', fill: RED },
-    { d: 'M11 19h8l-1 9h-7z', shine: true },
+    { d: 'M17 17v-5a7 7 0 0 1 14 0v5', stroke: '#B5302A', sw: 4 },
+    { d: 'M8 16h32l-2 27H10z', grad: ['#FF7E6E', '#D3302A'] },
+    { d: 'M9 16h30l-.3 4H9.3z', fill: '#B5302A', fillOpacity: 0.5, detail: true },
+    { circle: [17, 21, 1.8], fill: '#6E1614', detail: true },
+    { circle: [31, 21, 1.8], fill: '#6E1614', detail: true },
+    { circle: [24, 32, 7.5], grad: ['#FFE680', '#F2A91B'] },
+    { circle: [24, 32, 4.6], stroke: '#C97A0C', sw: 1.6, detail: true },
+    { d: 'M11 20h6l-1 13h-4z', shine: true },
+    { circle: [21.5, 29.5, 1.8], shine: true },
   ],
   house: [
-    { d: 'M32 9h6v12h-6z', fill: RED_DARK },
-    { d: 'M10 21h28v22H10z', fill: CREAM },
-    { d: 'M20 30h8v13h-8z', fill: BROWN },
-    { d: 'M3 25 24 6l21 19z', fill: RED },
-    { d: 'M12 20 24 10l4 3.5L14 22z', shine: true },
+    { d: 'M31 8h7v14h-7z', grad: ['#E0584A', '#A8302A'] },
+    { d: 'M29.5 5h10v4.5h-10z', grad: ['#9AA3B6', '#5E667A'] },
+    { d: 'M9 22h30v21H9z', grad: ['#FFF7DE', '#EFCB86'] },
+    { d: 'M33 23h6v20h-6z', fill: '#B4782E', fillOpacity: 0.2, detail: true },
+    { rect: [27, 27, 9, 8.5, 1.5], grad: ['#C8F4FF', '#4AB0EC'] },
+    { d: 'M31.5 27.5v7.5M27.5 31.2h8', stroke: '#FFFFFF', sw: 1.8, detail: true },
+    { d: 'M13 43V33a5 5 0 0 1 10 0v10z', grad: ['#C97B40', '#874420'] },
+    { circle: [20.5, 38.5, 1.4], fill: GOLD, detail: true },
+    { d: 'M2 26 24 5l22 21z', grad: ['#FF8D6B', '#D5352B'] },
+    { d: 'M15.5 15h17M10.5 20h27', stroke: '#A8241E', strokeOpacity: 0.45, sw: 1.8, detail: true },
+    { d: 'M4 42c5-3 35-3 40 0v3H4z', grad: ['#8BE64F', '#3FA52A'] },
+    { d: 'M10 22 24 9l3 2.8-14 12.5z', shine: true },
+    { d: 'M11 25h2.5v9H11z', shine: true },
   ],
   speaker: [
     { d: 'M5 18h9l12-10v32L14 30H5z', fill: WHITE },
@@ -134,13 +165,17 @@ export const ICON_SPECS = {
     { d: 'M19 10h4v10h-4z', shine: true },
   ],
   crown: [
-    { d: 'M5 15l11 9 8-15 8 15 11-9-4 22H9z', fill: GOLD },
-    { d: 'M9 35h30v7H9z', fill: GOLD_DARK },
-    { circle: [5, 14, 3.5], fill: RED },
-    { circle: [24, 8, 3.5], fill: RED },
-    { circle: [43, 14, 3.5], fill: RED },
-    { circle: [24, 29, 3.5], fill: BLUE },
-    { d: 'M11 22l5 4-3 8h-3z', shine: true },
+    { d: 'M5 15l11 9 8-15 8 15 11-9-4 21H9z', grad: ['#FFF08A', '#F2A91B'] },
+    { d: 'M9 34h30v8H9z', grad: ['#F2B12A', '#C47A0C'] },
+    { circle: [16, 38, 1.6], fill: '#FFF2B0', detail: true },
+    { circle: [32, 38, 1.6], fill: '#FFF2B0', detail: true },
+    { d: 'M21.5 38h5', stroke: '#FFF2B0', sw: 2.4, detail: true },
+    { circle: [5, 14, 3.8], grad: ['#FF9A90', '#D8302B'] },
+    { circle: [24, 8, 3.8], grad: ['#FF9A90', '#D8302B'] },
+    { circle: [43, 14, 3.8], grad: ['#FF9A90', '#D8302B'] },
+    { d: 'M24 23l4.5 5L24 33l-4.5-5z', grad: ['#9FE3FF', '#2E8CF0'] },
+    { d: 'M11 21l5 4-3 8h-3z', shine: true },
+    { circle: [23, 6.8, 1.3], shine: true },
   ],
   trash: [
     { d: 'M19 5h10v6H19z', fill: SILVER_DARK },
@@ -148,6 +183,26 @@ export const ICON_SPECS = {
     { d: 'M7 11h34v7H7z', fill: SILVER_DARK },
     { d: 'M19 23v15M24 23v15M29 23v15', stroke: SILVER_DARK, sw: 3 },
     { d: 'M14 19h5l1 10h-5z', shine: true },
+  ],
+  /** Kilit: henüz açılmamış araç / içerik */
+  lock: [
+    { d: 'M15 22v-6a9 9 0 0 1 18 0v6', stroke: SILVER_DARK, sw: 5 },
+    { rect: [9, 21, 30, 23, 5], grad: ['#FFE680', '#E08A12'] },
+    { d: 'M24 28a3.2 3.2 0 0 1 1.8 5.8V38h-3.6v-4.2A3.2 3.2 0 0 1 24 28z', fill: '#7A4A0A', detail: true },
+    { d: 'M12 24h5v8h-5z', shine: true },
+  ],
+    /** Geri Al: sola kıvrılan kalın ok (oyun aracı, Köşe Dükkanı / Malikane) */
+  undo: [
+    { d: 'M14 20h16a10 10 0 0 1 0 20H22', stroke: BLUE, sw: 7 },
+    { d: 'M4 20 17 8v24z', fill: BLUE },
+    { d: 'M8 19l7-6v5z', shine: true },
+  ],
+  /** Çekiç: tahtadan bir taşı kırar (oyun aracı, Gökdelen / Kruvaziyer) */
+  hammer: [
+    { d: 'M23 21l5 5-15 17a3.5 3.5 0 0 1-5-5z', fill: BROWN },
+    { d: 'M14 13l12-9 18 18-9 12z', fill: SILVER },
+    { d: 'M26 4l18 18-4 3L23 7z', fill: SILVER_DARK },
+    { d: 'M17 14l8-6 3 3-8 6z', shine: true },
   ],
 } satisfies Record<string, Layer[]>;
 
@@ -168,21 +223,30 @@ export function iconSvg(name: IconName, size: number): string {
         : `<path d="${l.d}" ${attrs}/>`;
   const outline = (dy: number) =>
     layers
-      .filter((l) => !l.shine)
+      .filter(isSolid)
       .map((l) =>
         geom(
           l,
-          `transform="translate(0 ${dy})" fill="${l.fill ? OUTLINE : 'none'}" stroke="${OUTLINE}" stroke-width="${(l.sw ?? 0) + OUTLINE_W}" stroke-linejoin="round" stroke-linecap="round"`
+          `transform="translate(0 ${dy})" fill="${l.fill || l.grad ? OUTLINE : 'none'}" stroke="${OUTLINE}" stroke-width="${(l.sw ?? 0) + OUTLINE_W}" stroke-linejoin="round" stroke-linecap="round"`
         )
       )
       .join('');
+  const defs = layers
+    .map((l, i) => (l.grad ? `<linearGradient id="${name}-g${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${l.grad[0]}"/><stop offset="1" stop-color="${l.grad[1]}"/></linearGradient>` : ''))
+    .join('');
   const body = layers
-    .filter((l) => !l.shine)
-    .map((l) => geom(l, `fill="${l.fill ?? 'none'}" stroke="${l.stroke ?? 'none'}" stroke-width="${l.sw ?? 0}" stroke-linejoin="round" stroke-linecap="round"`))
+    .map((l, i) =>
+      l.shine
+        ? ''
+        : geom(
+            l,
+            `fill="${l.grad ? `url(#${name}-g${i})` : (l.fill ?? 'none')}" fill-opacity="${l.fillOpacity ?? 1}" stroke="${l.stroke ?? 'none'}" stroke-opacity="${l.strokeOpacity ?? 1}" stroke-width="${l.sw ?? 0}" stroke-linejoin="round" stroke-linecap="round"`
+          )
+    )
     .join('');
   const shine = layers
     .filter((l) => l.shine)
     .map((l) => geom(l, `fill="#FFFFFF" fill-opacity="0.45"`))
     .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -3 54 57" width="${size}" height="${size * (57 / 54)}">${outline(SHADOW_DY)}${outline(0)}${body}${shine}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -3 54 57" width="${size}" height="${size * (57 / 54)}"><defs>${defs}</defs>${outline(SHADOW_DY)}${outline(0)}${body}${shine}</svg>`;
 }

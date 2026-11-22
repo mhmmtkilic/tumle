@@ -38,7 +38,7 @@ interface Props {
   icon?: React.ReactNode;
   /** Kare ikon butonu: yazı gösterilmez, `label` yalnız ekran okuyucu içindir */
   square?: boolean;
-  /** Sağ üst köşede kırmızı sayı */
+  /** Sağ üst köşede yeşil sayı rozeti (alt çubukla aynı) */
   badge?: number;
   style?: ViewStyle;
 }
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     paddingHorizontal: 5,
-    backgroundColor: "#E8413A",
+    backgroundColor: "#43B52A",
     borderWidth: 2,
     borderColor: OUTLINE,
     alignItems: "center",

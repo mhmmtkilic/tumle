@@ -10,6 +10,7 @@ import { useCityLayout } from '../city/LayoutContext';
 import { useEconomy } from '../economy/EconomyContext';
 import { useSettings } from '../settings/SettingsContext';
 import { clearSavedGame } from '../useGame';
+import { resetRivals } from '../leaderboard/rivals';
 import { space } from '../ui/theme';
 
 interface Props {
@@ -31,6 +32,7 @@ export default function SettingsScreen({ onBack }: Props) {
     resetLayout();
     resetAchievements();
     clearSavedGame();
+    resetRivals();
   };
 
   return (

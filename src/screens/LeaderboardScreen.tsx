@@ -1,9 +1,9 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import AvatarView from '../components/AvatarView';
-import { ITEM_ART } from '../components/ItemArt';
 import { CrownIcon } from '../components/icons';
 import GameTopBar from '../ui/game/GameTopBar';
+import OutlineText from '../ui/game/OutlineText';
 import { useEconomy } from '../economy/EconomyContext';
 import { totalValue } from '../economy/progress';
 import { formatWorth, Rival, rivalsAt } from '../leaderboard/rivals';
@@ -33,12 +33,11 @@ const MEDAL = [
 ];
 
 interface Props {
-  onBack: () => void;
   /** Ekran görünür mü: görünürken rakip servetleri dakikada bir tazelenir */
   active: boolean;
 }
 
-export default function LeaderboardScreen({ onBack, active }: Props) {
+export default function LeaderboardScreen({ active }: Props) {
   const { wallet, owned } = useEconomy();
   const { name, avatar } = useProfile();
   const [now, setNow] = useState(() => Date.now());
@@ -61,14 +60,14 @@ export default function LeaderboardScreen({ onBack, active }: Props) {
   const above = myRank > 1 ? list[myRank - 2] : null;
 
   // Ekran her açılışta listenin başından başlar
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   useEffect(() => {
     if (active) scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [active]);
 
   return (
     <View style={styles.root}>
-      <GameTopBar title="Zenginler" onBack={onBack} style={styles.bar} />
+      <GameTopBar title="Zenginler" style={styles.bar} />
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Podium top={list.slice(0, 3)} />
@@ -79,7 +78,7 @@ export default function LeaderboardScreen({ onBack, active }: Props) {
         </View>
       </ScrollView>
 
-      <MyBar rank={myRank} total={list.length} worth={worth} above={above} />
+      <MyBar rank={myRank} worth={worth} above={above} />
     </View>
   );
 }
@@ -87,8 +86,8 @@ export default function LeaderboardScreen({ onBack, active }: Props) {
 /** İlk üç: ortada birinci (büyük, taçlı), solda ikinci, sağda üçüncü */
 function Podium({ top }: { top: Entry[] }) {
   const order = [1, 0, 2];
-  const heights = [96, 128, 76];
-  const sizes = [64, 84, 60];
+  const heights = [58, 78, 44];
+  const sizes = [60, 76, 56];
   return (
     <View style={styles.podium}>
       {order.map((idx, col) => {
@@ -111,11 +110,10 @@ function Podium({ top }: { top: Entry[] }) {
             <Text style={[styles.podiumName, e.me && styles.meText]} numberOfLines={1}>
               {e.me ? 'Sen' : e.name}
             </Text>
-            <Text style={styles.podiumWorth} numberOfLines={1}>
+            <OutlineText size={15} strokeWidth={2.5} depth={1} color="#FFD43B">
               {formatWorth(e.worth)}
-            </Text>
-            <View style={[styles.step, { height: heights[col], backgroundColor: m.side }]}>
-              <View style={[styles.stepFace, { backgroundColor: m.face }]} />
+            </OutlineText>
+            <View style={[styles.step, { height: heights[col], backgroundColor: m.side, backgroundImage: `linear-gradient(${m.side}, ${m.side} 30%, rgba(0,0,0,0.25))` }]}>
               <Text style={[styles.stepRank, { color: m.face }]}>{idx + 1}</Text>
             </View>
           </View>
@@ -125,59 +123,44 @@ function Podium({ top }: { top: Entry[] }) {
   );
 }
 
+/** Liste satırı: sıra, avatar, ad, sağda servet. Başka bir şey yok. */
 const Row = memo(function Row({ entry, rank }: { entry: Entry; rank: number }) {
-  const Art = entry.best ? ITEM_ART[entry.best.id] : null;
   return (
     <View style={[styles.row, entry.me && styles.rowMe]}>
-      <View style={[styles.rankBadge, entry.me && styles.rankBadgeMe]}>
-        <Text style={styles.rankText} numberOfLines={1} adjustsFontSizeToFit>
-          {rank}
-        </Text>
-      </View>
+      <OutlineText size={18} strokeWidth={2.5} depth={1} containerStyle={styles.rank}>
+        {String(rank)}
+      </OutlineText>
       <View style={styles.rowAvatar}>
-        <AvatarView config={entry.avatar} size={44} />
+        <AvatarView config={entry.avatar} size={40} />
       </View>
-      <View style={styles.rowInfo}>
-        <Text style={styles.rowName} numberOfLines={1}>
-          {entry.me ? `${entry.name.trim()} (Sen)` : entry.name}
-        </Text>
-        <Text style={styles.rowWorth} numberOfLines={1}>
-          {formatWorth(entry.worth)}
-        </Text>
-      </View>
-      {Art ? (
-        <View style={styles.rowArt}>
-          <Art />
-        </View>
-      ) : null}
+      <Text style={styles.rowName} numberOfLines={1}>
+        {entry.me ? 'Sen' : entry.name}
+      </Text>
+      <OutlineText size={17} strokeWidth={2.5} depth={1} color="#FFD43B">
+        {formatWorth(entry.worth)}
+      </OutlineText>
     </View>
   );
 });
 
-/** Alttaki sabit panel: sıran ve bir üsttekine kalan fark */
-function MyBar({ rank, total, worth, above }: { rank: number; total: number; worth: number; above: Entry | null }) {
-  const gap = above ? above.worth - worth : 0;
-  // Bir üst sıraya ne kadar yaklaşıldı (logaritmik: küçük servetlerde de ilerleme görünsün)
-  const progress = above ? Math.min(1, Math.max(0.04, Math.log10(Math.max(worth, 1)) / Math.log10(Math.max(above.worth, 10)))) : 1;
+/** Alttaki sabit satır: sıran, servetin ve bir üsttekine kalan fark (tek kısa satır) */
+function MyBar({ rank, worth, above }: { rank: number; worth: number; above: Entry | null }) {
   return (
     <View style={styles.myBar}>
-      <View style={styles.myRank}>
-        <Text style={styles.myRankLabel}>SIRAN</Text>
-        <Text style={styles.myRankText}>#{rank}</Text>
-      </View>
+      <OutlineText size={20} strokeWidth={2.5} depth={1} color="#FFD43B" containerStyle={styles.myRank}>
+        {`#${rank}`}
+      </OutlineText>
       <View style={styles.myInfo}>
+        <OutlineText size={17} strokeWidth={2.5} depth={1} style={styles.left}>
+          Sen
+        </OutlineText>
         <Text style={styles.myLine} numberOfLines={1}>
-          {above ? `${above.name} için ${formatWorth(gap)} daha` : `Zirvedesin! ${total} kişi arkanda`}
-        </Text>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${progress * 100}%` }]}>
-            <View style={styles.shine} />
-          </View>
-        </View>
-        <Text style={styles.myWorth} numberOfLines={1}>
-          Servetin: {formatWorth(worth)}
+          {above ? `${above.name}: ${formatWorth(above.worth - worth)} kaldı` : 'Zirvedesin!'}
         </Text>
       </View>
+      <OutlineText size={18} strokeWidth={2.5} depth={1} color="#FFD43B">
+        {formatWorth(worth)}
+      </OutlineText>
     </View>
   );
 }
@@ -185,76 +168,49 @@ function MyBar({ rank, total, worth, above }: { rank: number; total: number; wor
 const styles = StyleSheet.create({
   root: { flex: 1, paddingHorizontal: space.l },
   bar: { marginBottom: space.s },
-  body: { paddingBottom: 130 },
-  podium: { flexDirection: 'row', alignItems: 'flex-end', gap: space.s, marginTop: space.l, marginBottom: space.m },
+  body: { paddingBottom: 96 },
+  podium: { flexDirection: 'row', alignItems: 'flex-end', gap: space.s, marginTop: space.m, marginBottom: space.m },
   podiumCol: { flex: 1, alignItems: 'center' },
   crown: { marginBottom: -10, zIndex: 2 },
-  podiumAvatar: { backgroundColor: colors.surface, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
-  podiumName: { ...type.headline, fontSize: 16, color: colors.label, marginTop: 4, maxWidth: '100%' },
-  podiumWorth: { ...type.headline, fontSize: 15, color: colors.gold, marginTop: -4 },
+  podiumAvatar: { backgroundColor: colors.surface, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  podiumName: { ...type.headline, fontSize: 15, color: colors.label, marginTop: 4, maxWidth: '100%' },
   meText: { color: '#FFD43B' },
   step: {
     width: '100%',
-    marginTop: space.s,
+    marginTop: space.xs,
     borderTopLeftRadius: radius.m,
     borderTopRightRadius: radius.m,
     borderWidth: 2.5,
     borderBottomWidth: 0,
     borderColor: colors.outline,
     overflow: 'hidden',
-  },
-  stepFace: { height: 18, borderBottomWidth: 2.5, borderBottomColor: 'rgba(27,34,56,0.3)' },
-  stepRank: { fontFamily: GAME_FONT, fontSize: 44, lineHeight: 56, textAlign: 'center', marginTop: 2, ...textOutline, textShadowOffset: { width: 0, height: 3 } },
-  list: { gap: space.s },
-  row: { ...panelStyle, flexDirection: 'row', alignItems: 'center', paddingVertical: space.s, paddingHorizontal: space.s, gap: space.m },
-  rowMe: { borderColor: '#FFB21E', backgroundColor: '#2E5390' },
-  rankBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.surfaceTop,
-    borderWidth: 2.5,
-    borderColor: colors.outline,
-    alignItems: 'center',
     justifyContent: 'center',
   },
-  rankBadgeMe: { backgroundColor: '#FFB21E' },
-  rankText: { fontFamily: GAME_FONT, fontSize: 16, color: colors.label, ...textOutline, textShadowOffset: { width: 0, height: 1.5 } },
-  rowAvatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden', borderWidth: 2, borderColor: colors.outline },
-  rowInfo: { flex: 1 },
-  rowName: { ...type.body, color: colors.label },
-  rowWorth: { ...type.headline, fontSize: 17, color: colors.gold, marginTop: -2 },
-  rowArt: { width: 44, height: 44 },
+  stepRank: { fontFamily: GAME_FONT, fontSize: 28, lineHeight: 36, textAlign: 'center', ...textOutline, textShadowOffset: { width: 0, height: 2 } },
+  list: { gap: space.s },
+  row: { ...panelStyle, flexDirection: 'row', alignItems: 'center', height: 58, paddingHorizontal: space.m, gap: space.m },
+  rowMe: { backgroundImage: 'linear-gradient(#3B70C4, #2A559C)' },
+  rank: { width: 24 },
+  left: { textAlign: 'left' },
+  rowAvatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', borderWidth: 2, borderColor: colors.outline },
+  rowName: { ...type.body, flex: 1, color: colors.label },
   myBar: {
     ...panelStyle,
     position: 'absolute',
     left: space.l,
     right: space.l,
-    bottom: 0,
+    bottom: space.s,
     flexDirection: 'row',
     alignItems: 'center',
+    height: 66,
+    paddingHorizontal: space.m,
     gap: space.m,
-    padding: space.m,
-    borderColor: colors.outline,
-    backgroundColor: '#2E5390',
+    borderColor: '#E9A11A',
+    borderBottomColor: colors.outline,
+    backgroundImage: 'linear-gradient(#3566B8, #22468A)',
+    boxShadow: '0 0 0 2.5px #1B2238, inset 0 3px 0 rgba(255,255,255,0.18)',
   },
-  myRank: {
-    minWidth: 64,
-    paddingHorizontal: space.s,
-    paddingVertical: 2,
-    borderRadius: radius.m,
-    backgroundColor: '#FFB21E',
-    borderWidth: 2.5,
-    borderBottomWidth: 4.5,
-    borderColor: colors.outline,
-    alignItems: 'center',
-  },
-  myRankLabel: { ...type.overline, fontSize: 10, color: '#8A4E00' },
-  myRankText: { fontFamily: GAME_FONT, fontSize: 24, lineHeight: 28, color: colors.label, ...textOutline },
-  myInfo: { flex: 1, gap: 4 },
-  myLine: { ...type.subhead, color: colors.label },
-  track: { height: 14, borderRadius: 7, backgroundColor: colors.outline, padding: 2, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 6, backgroundColor: '#43B52A' },
-  shine: { position: 'absolute', top: 1, left: 4, right: 4, height: '35%', borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.45)' },
-  myWorth: { ...type.caption, color: colors.secondaryLabel },
+  myRank: { minWidth: 40 },
+  myInfo: { flex: 1 },
+  myLine: { ...type.caption, color: colors.secondaryLabel },
 });

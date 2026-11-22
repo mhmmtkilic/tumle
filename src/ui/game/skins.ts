@@ -21,7 +21,8 @@ export const SKINS: Record<Skin, SkinColors> = {
   blue: { top: '#7FD0FF', bottom: '#2E8CF0', base: '#1A5AAE', text: '#FFFFFF', textShadow: '#123E7A' },
   green: { top: '#9BEA62', bottom: '#43B52A', base: '#287A17', text: '#FFFFFF', textShadow: '#1B5A0E' },
   red: { top: '#FF8A7A', bottom: '#E8413A', base: '#9E2420', text: '#FFFFFF', textShadow: '#6E1614' },
-  gray: { top: '#D8DDE6', bottom: '#A9B1BF', base: '#6F7887', text: '#F4F6FA', textShadow: '#545C69' },
+  /** Pasif: koyu gri-mavi, beyaz yazı okunur kalsın (açık gri üstünde beyaz kayboluyordu) */
+  gray: { top: '#A3AEC2', bottom: '#7A879E', base: '#4F5A6E', text: '#FFFFFF', textShadow: '#3A4352' },
 };
 
 /** Panel (bilgi kutusu) renkleri: koyu lacivert, üstte açık şerit */

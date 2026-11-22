@@ -36,6 +36,10 @@ import Mahalle3D, { Mahalle3DHandle, StageEvents } from './src/components/Mahall
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import { StageContext } from './src/city/StageContext';
 import GameBackground from './src/ui/game/GameBackground';
+import TabBar, { TAB_BAR_HEIGHT, TabKey } from './src/ui/game/TabBar';
+import { ITEMS } from './src/economy/items';
+import { checkBuy } from './src/economy/progress';
+import { useAchievements } from './src/achievements/AchievementsContext';
 
 type Screen = 'home' | 'game' | 'shop' | 'city' | 'settings' | 'achievements' | 'profile' | 'avatar' | 'leaderboard';
 
@@ -54,6 +58,9 @@ const ON_DEMAND: Screen[] = ['game', 'avatar'];
  * görünümleri yeniden kurulur; bu geçişte takılma yapıyordu.
  */
 const ALWAYS_ON: Screen[] = ['home', 'city'];
+/** Alt gezinti çubuğunun göründüğü ekranlar (sekmeler); diğerlerinde çubuk aşağı kayar */
+const TABS: readonly Screen[] = ['shop', 'city', 'home', 'achievements', 'leaderboard'];
+const isTab = (s: Screen): s is TabKey => TABS.includes(s);
 const ENTER_MS = 260;
 const EXIT_MS = 180;
 
@@ -65,11 +72,14 @@ const ScreenLayer = React.memo(function ScreenLayer({
   active,
   visible,
   padded,
+  tabbed,
   children,
 }: {
   active: boolean;
   visible: boolean;
   padded: boolean;
+  /** Alt çubuğun altında kalmasın diye alttan çubuk kadar boşluk */
+  tabbed: boolean;
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -88,7 +98,7 @@ const ScreenLayer = React.memo(function ScreenLayer({
   return (
     <Activity mode={visible ? 'visible' : 'hidden'}>
       <Animated.View
-        style={[StyleSheet.absoluteFill, padded && { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }, anim]}
+        style={[StyleSheet.absoluteFill, padded && { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 + (tabbed ? TAB_BAR_HEIGHT : 0) }, anim]}
         pointerEvents={active ? 'box-none' : 'none'}
       >
         {children}
@@ -107,8 +117,12 @@ function Root({ onWorldReady }: { onWorldReady: () => void }) {
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Mahalle ziyaretine kadar biriken yeni alımlar (iniş animasyonu için) */
   const [justBought, setJustBought] = useState<string[]>([]);
-  const { owned } = useEconomy();
+  const { owned, holdWallet } = useEconomy();
   const { layout } = useCityLayout();
+
+  // Oyun açıkken cüzdan durumu dondurulur (bkz. Economy.holdWallet); oyundan
+  // çıkıldığı an güncel değere eşitlenir, ana sayfa doğru birikimi gösterir
+  useEffect(() => (screen === 'game' ? holdWallet() : undefined), [screen, holdWallet]);
 
   // Uygulamanın tek 3D sahnesi: ana ekranda arka plan, Mahallem'de sahne
   const sceneRef = useRef<Mahalle3DHandle>(null);
@@ -171,22 +185,20 @@ function Root({ onWorldReady }: { onWorldReady: () => void }) {
           onShop={openShop}
           onCity={openCity}
           onSettings={() => go('settings')}
-          onAchievements={() => go('achievements')}
           onProfile={openProfile}
-          onLeaderboard={() => go('leaderboard')}
         />
       ),
-      shop: <CatalogScreen onBack={toHome} onBought={onBought} />,
+      shop: <CatalogScreen onBought={onBought} />,
       settings: <SettingsScreen onBack={toHome} />,
-      achievements: <AchievementsScreen onBack={toHome} />,
+      achievements: <AchievementsScreen />,
       profile: <ProfileScreen onBack={toHome} onEditAvatar={openAvatar} backRef={profileBack} />,
       game: <GameScreen onBack={toHome} />,
       avatar: <AvatarEditorScreen onBack={openProfile} onSaved={openProfile} />,
     }),
     [go, openShop, openCity, openProfile, openAvatar, toHome, onBought]
   );
-  const city = useMemo(() => <CityScreen onBack={toHome} onShop={openShop} />, [toHome, openShop]);
-  const board = useMemo(() => <LeaderboardScreen onBack={toHome} active={boardActive} />, [toHome, boardActive]);
+  const city = useMemo(() => <CityScreen />, []);
+  const board = useMemo(() => <LeaderboardScreen active={boardActive} />, [boardActive]);
   const render = (k: Screen) => (k === 'city' ? city : k === 'leaderboard' ? board : fixed[k]);
 
   return (
@@ -204,20 +216,30 @@ function Root({ onWorldReady }: { onWorldReady: () => void }) {
           onReady={onWorldReady}
         />
         {KEPT.filter((k) => mounted.has(k)).map((k) => (
-          <ScreenLayer key={k} active={screen === k} visible={ALWAYS_ON.includes(k) || screen === k || leaving === k} padded={k !== 'city'}>
+          <ScreenLayer key={k} active={screen === k} visible={ALWAYS_ON.includes(k) || screen === k || leaving === k} padded={k !== 'city'} tabbed={isTab(k)}>
             {render(k)}
           </ScreenLayer>
         ))}
         {ON_DEMAND.filter((k) => screen === k || leaving === k).map((k) => (
-          <ScreenLayer key={k} active={screen === k} visible padded>
+          <ScreenLayer key={k} active={screen === k} visible padded tabbed={false}>
             {render(k)}
           </ScreenLayer>
         ))}
+        <AppTabBar active={isTab(screen) ? screen : null} onSelect={go} />
         <StatusBar style="light" />
       </View>
     </StageContext.Provider>
   );
 }
+
+/** Alt çubuk + rozetleri: alınabilir eşya sayısı (Mağaza), alınmamış ödüller (Başarımlar) */
+const AppTabBar = React.memo(function AppTabBar({ active, onSelect }: { active: TabKey | null; onSelect: (k: TabKey) => void }) {
+  const { owned, wallet } = useEconomy();
+  const { claimable } = useAchievements();
+  const buyable = useMemo(() => ITEMS.filter((i) => checkBuy(owned, wallet, i).ok).length, [owned, wallet]);
+  const badges = useMemo(() => ({ shop: buyable, achievements: claimable }), [buyable, claimable]);
+  return <TabBar active={active} onSelect={onSelect} badges={badges} />;
+});
 
 // Gizli ekranlar <Activity> ile önceden kurulur; Reanimated'ın "render sırasında
 // okuma" denetimi bu ilk kurulumu ikinci render sanıp yanlış uyarı veriyor
@@ -227,8 +249,9 @@ configureReanimatedLogger({ level: ReanimatedLogLevel.warn, strict: false });
 NativeSplash.preventAutoHideAsync();
 NativeSplash.setOptions({ duration: 300, fade: true });
 
-// Bar dolumu görülebilsin diye splash en az bu kadar ekranda kalır
-const MIN_SPLASH_MS = 3000;
+// Logo bir an görünsün diye splash en az bu kadar kalır; asıl bekleme gerçek
+// yüklemedir (eskiden yükleme bitse de 3 sn bekletiyordu)
+const MIN_SPLASH_MS = 1200;
 
 /**
  * Sağlayıcılar + ekranlar. Önbellekli: açılış çubuğunun saniyede 10 kez
@@ -280,7 +303,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Bar 3 saniyeye yayılır ama gerçek yüklemenin önüne geçmez:
+  // Bar en az MIN_SPLASH_MS'e yayılır ama gerçek yüklemenin önüne geçmez:
   // asset'ler erken biterse süreyle akar, geç kalırsa bar da bekler
   const progress = Math.min(loadProgress, timeProgress);
 

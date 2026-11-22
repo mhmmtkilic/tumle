@@ -29,11 +29,12 @@ export interface AchievementDef {
 export type AchStat = 'make4' | 'make5' | 'hit5' | 'hit10' | 'earned';
 
 /**
- * Başarımlar: 7 normal + 8 zor + 7 elit + 12 efsanevi = 34.
+ * Başarımlar: 7 normal + 7 zor + 8 elit + 12 efsanevi = 34.
  * Bilerek kolay başarım yok: ilk oyunda kendiliğinden açılanlar (1 TL, 10 TL,
  * ×5 / ×10 combo, madeni para seti) sayaçlı yapıldı. Eşikler simülasyonla
  * seçildi (scratch bot: oyun başına ~25 adet 1 TL, ~12 adet 10 TL, ~12 kez ×5,
- * ~1,5 kez ×10, ~3.000 TL); normal rozet ~4-5 oyun, EFSANE ~15 oyun sürer.
+ * ~1,5 kez ×10); normal rozet ~4-5 oyun, EFSANE ~15 oyun sürer. TL eşikleri
+ * 2026-11 ekonomi kalibrasyonuyla güncellendi (scripts/economy).
  *
  * Kurgu iki eksende ilerler:
  *  1. Zincirin her para türü (coin → note → gold → gem → crypto → epic) hem
@@ -60,10 +61,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'kumbara',
     title: 'Kumbara Tamam',
-    desc: 'Oyunlarda toplam 15.000 TL kazan.',
+    desc: 'Oyunlarda toplam 5 milyon TL kazan.',
     tier: 'normal',
     kind: 'coin',
-    goal: { stat: 'earned', n: 15_000 },
+    goal: { stat: 'earned', n: 5_000_000 },
   },
   {
     id: 'banknot',
@@ -132,13 +133,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'milyoner',
     title: 'Kağıt Üstünde Milyoner',
-    desc: 'Birikimini 1.000.000 TL yap.',
+    desc: 'Birikimini 10 milyon TL yap.',
     tier: 'zor',
   },
   {
     id: 'boga',
     title: 'Boğa Piyasası',
-    desc: 'Tek oyunda 100.000 TL kazan.',
+    desc: 'Tek oyunda 50 milyon TL kazan.',
     tier: 'zor',
   },
   {
@@ -147,13 +148,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     desc: 'Yan Arsa’yı satın al.',
     tier: 'zor',
   },
-  {
-    id: 'kral',
-    title: 'Mahalle Kralı',
-    desc: 'Mahalledeki her eşyaya sahip ol.',
-    tier: 'zor',
-  },
   // ---- Elit (mücevher mineli altın madalya, ışın + parıltı) ----
+  {
+    id: 'kuyumcu',
+    title: 'Kuyumcu',
+    desc: 'İlk Yeşim Taşı’nı oluştur — mücevher çağı başlasın.',
+    tier: 'elit',
+    kind: 'gem',
+  },
   {
     id: 'altinseti',
     title: 'Altın Vitrini',
@@ -184,13 +186,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'hiper',
     title: 'Hiper Enflasyon',
-    desc: 'Tek oyunda 1.000.000 TL kazan.',
+    desc: 'Tek oyunda 1 milyar TL kazan.',
     tier: 'elit',
   },
   {
     id: 'holding',
     title: 'Holding',
-    desc: 'Birikimini 10.000.000 TL yap.',
+    desc: 'Birikimini 1 milyar TL yap.',
     tier: 'elit',
   },
   {
@@ -201,11 +203,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
   // ---- Efsanevi (taçlı, yanardöner jantlı, faset yüzlü madalya) ----
   {
-    id: 'kuyumcu',
-    title: 'Kuyumcu',
-    desc: 'İlk Yeşim Taşı’nı oluştur — mücevher çağı başlasın.',
+    id: 'kral',
+    title: 'Mahalle Kralı',
+    desc: 'Mahalledeki her eşyaya sahip ol.',
     tier: 'efsanevi',
-    kind: 'gem',
   },
   {
     id: 'elmas',
@@ -286,18 +287,24 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
 ];
 
-/** Başarım ödülü (TL), kademeye göre: rozet ne kadar zorsa ödül o kadar büyük */
+/**
+ * Başarım ödülünün TABANI (TL), kademeye göre. Asıl ödül = taban × oyuncunun o
+ * anki kazanç çarpanı (items.earnMultiplier): gelir eşyalarla katlandığı için
+ * sabit bir tutar ilerledikçe anlamsızlaşırdı. Böylece ödül hep aynı "kaç
+ * oyunluk kazanç" değerindedir (efsanevi ≈ orta oyuncunun iki oyunu); ödülü
+ * bekletip sonra almak bu ölçüyle bir şey kazandırmaz. Ödüller gelirin küçük
+ * bir parçası kalır (scripts/economy): rozet mağazayı açmaz, yalnız hızlandırır.
+ */
 export const REWARD_BY_TIER: Record<AchTier, number> = {
-  // Oyun başına kazanç ilk oyunlarda birkaç bin TL: ödül tek başına mağazayı
-  // açmasın (eskiden 25.000 TL'lik normal rozetler ilk oyunda açılıyordu)
-  normal: 10_000,
+  normal: 25_000,
   zor: 100_000,
-  elit: 1_000_000,
-  efsanevi: 10_000_000,
+  elit: 400_000,
+  efsanevi: 1_000_000,
 };
 
-export function rewardOf(def: AchievementDef): number {
-  return REWARD_BY_TIER[def.tier];
+/** @param mult oyuncunun kazanç çarpanı (ödül alınırkenki) */
+export function rewardOf(def: AchievementDef, mult = 1): number {
+  return Math.round(REWARD_BY_TIER[def.tier] * mult);
 }
 
 // ---- Doğrulama (yanlış veri geliştirme sırasında anında patlasın) ----------

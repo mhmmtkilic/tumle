@@ -1,6 +1,6 @@
-import React from 'react';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { ICON_SPECS, IconName, Layer, OUTLINE, OUTLINE_W, SHADOW_DY } from './gameIconSpecs';
+import React, { useId } from 'react';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { ICON_SPECS, IconName, isSolid, Layer, OUTLINE, OUTLINE_W, SHADOW_DY } from './gameIconSpecs';
 
 /*
  * Renkli oyun ikonları (Clash Royale tarzı): her ikon kendi renginde, kalın
@@ -23,12 +23,15 @@ function shape(l: Layer, key: string, props: Record<string, unknown>) {
 
 const GameIcon = React.memo(function GameIcon({ name, size = 24 }: { name: IconName; size?: number }) {
   const layers: Layer[] = ICON_SPECS[name];
-  const solid = layers.filter((l) => !l.shine);
+  // Degrade kimliği her ikon örneğinde benzersiz: aynı kimlik belgede iki kez
+  // olunca (web) gizli bir kopyaya bağlanıp ikon siyah çiziliyordu
+  const uid = useId().replace(/:/g, '');
+  const solid = layers.filter(isSolid);
   const outline = (dy: number) =>
     solid.map((l, i) =>
       shape(l, `o${dy}-${i}`, {
         translateY: dy,
-        fill: l.fill ? OUTLINE : 'none',
+        fill: l.fill || l.grad ? OUTLINE : 'none',
         stroke: OUTLINE,
         strokeWidth: (l.sw ?? 0) + OUTLINE_W,
         strokeLinejoin: 'round',
@@ -37,11 +40,25 @@ const GameIcon = React.memo(function GameIcon({ name, size = 24 }: { name: IconN
     );
   return (
     <Svg viewBox="-3 -3 54 57" width={size} height={size * (57 / 54)}>
+      <Defs>
+        {layers.map((l, i) =>
+          l.grad ? (
+            <LinearGradient key={i} id={`${name}${uid}g${i}`} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={l.grad[0]} />
+              <Stop offset="1" stopColor={l.grad[1]} />
+            </LinearGradient>
+          ) : null
+        )}
+      </Defs>
       {outline(SHADOW_DY)}
       {outline(0)}
-      {solid.map((l, i) =>
-        shape(l, `b${i}`, {
-          fill: l.fill ?? 'none',
+      {layers.map((l, i) =>
+        l.shine
+          ? null
+          : shape(l, `b${i}`, {
+          fill: l.grad ? `url(#${name}${uid}g${i})` : (l.fill ?? 'none'),
+          fillOpacity: l.fillOpacity ?? 1,
+          strokeOpacity: l.strokeOpacity ?? 1,
           stroke: l.stroke ?? 'none',
           strokeWidth: l.sw ?? 0,
           strokeLinejoin: 'round',
@@ -74,6 +91,9 @@ export const HouseIcon = icon('house');
 export const VibrateIcon = icon('vibrate');
 export const TrashIcon = icon('trash');
 export const CrownIcon = icon('crown');
+export const UndoIcon = icon('undo');
+export const HammerIcon = icon('hammer');
+export const LockIcon = icon('lock');
 
 export function SpeakerIcon({ muted, size }: IconProps & { muted?: boolean }) {
   return <GameIcon name={muted ? 'speakerOff' : 'speaker'} size={size} />;

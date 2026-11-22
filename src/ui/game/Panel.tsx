@@ -30,6 +30,7 @@ const styles = StyleSheet.create({
   },
   inner: {
     backgroundColor: PANEL.bottom,
+    backgroundImage: 'linear-gradient(#2F5BA8, #22437F)',
     borderRadius: 15,
     borderTopWidth: 3,
     borderTopColor: PANEL.top,
